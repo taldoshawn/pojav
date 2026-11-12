@@ -8,6 +8,8 @@ apk = next(Path('apk').glob('*.apk'))
 def adb(*args, check=True):
     return subprocess.run(['adb', *args], check=check, capture_output=True, timeout=120)
 failed = None
+startup_passed = False
+profiles_verified = False
 installed = False
 try:
     install = adb('install', '-r', '-g', str(apk), check=False)
@@ -55,6 +57,52 @@ try:
     if any(marker in app_log for marker in [b'FATAL EXCEPTION', b'Fatal signal', b'panicked at']):
         raise RuntimeError('App crash marker in logcat')
     (evidence/'launcher.png').write_bytes(adb('exec-out', 'screencap', '-p').stdout)
+    startup_passed = True
+    if os.environ.get('PROBE_PROFILES') == 'true':
+        def profile_tap(x, y):
+            adb('shell', 'input', 'tap', str(x), str(y))
+            time.sleep(2)
+        def profile_capture(name):
+            (evidence/(name+'.png')).write_bytes(adb('exec-out', 'screencap', '-p').stdout)
+        def enter_local(name):
+            profile_tap(600, 500)  # Offline provider
+            profile_capture('profile-provider-' + name)
+            profile_tap(900, 250)  # Player name field
+            adb('shell', 'input', 'keyevent', '123', *(['67'] * 16))
+            adb('shell', 'input', 'text', name)
+            adb('shell', 'input', 'keyevent', '4')
+            time.sleep(2)
+            profile_tap(900, 980)  # Finish editing, then save/use
+            profile_tap(900, 980)
+            profile_capture('profile-saved-' + name)
+        profile_tap(1650, 60)
+        profile_capture('profile-providers')
+        enter_local('PojavOne')
+        profile_tap(1650, 60)
+        profile_tap(740, 980)  # Add account
+        enter_local('PojavTwo')
+        profile_tap(1650, 60)
+        profile_capture('profile-list')
+        profile_tap(900, 375)  # First saved local profile
+        adb('shell', 'am', 'force-stop', app)
+        adb('shell', 'am', 'start', '-W', '-n', app+'/com.google.androidgamesdk.GameActivity')
+        time.sleep(10)
+        profile_capture('profile-after-restart')
+        adb('root')
+        adb('wait-for-device')
+        files = '/data/user/0/' + app + '/files/'
+        accounts = json.loads(adb('shell', 'cat', files+'accounts.json').stdout)
+        config = json.loads(adb('shell', 'cat', files+'android-launcher.json').stdout)
+        report = {'saved_names': accounts.get('offline'),
+                  'selected_local': accounts.get('offline_selected'),
+                  'selected_online': accounts.get('selected'), 'launcher_name': config.get('name')}
+        (evidence/'local-profiles.json').write_text(json.dumps(report, indent=2)+'\n')
+        adb('unroot')
+        adb('wait-for-device')
+        if report != {'saved_names':['PojavOne','PojavTwo'], 'selected_local':'PojavOne',
+                      'selected_online':None, 'launcher_name':'PojavOne'}:
+            raise RuntimeError('Local profile creation/switch/restart failed; see screenshots and local-profiles.json')
+        profiles_verified = True
     if os.environ.get('PROBE_GAME') == 'true':
         # Pixel 2 landscape, fixed profile above. This explores UI and records
         # screenshots for inspection; it does not assert successful gameplay.
@@ -94,7 +142,7 @@ finally:
     (evidence/'logcat.txt').write_bytes(adb('logcat', '-d', check=False).stdout)
     (evidence/'startup.png').write_bytes(adb('exec-out', 'screencap', '-p', check=False).stdout)
     (evidence/'RESULT.json').write_text(json.dumps({'package':app,'installed':installed,
-        'startup_passed':failed is None,'failure':failed,'test':'x86_64 emulator API 35 startup only',
+        'startup_passed':startup_passed,'failure':failed,'local_profiles_verified':profiles_verified,'test':'x86_64 emulator API 35 startup only',
         'world_or_multiplayer_tested':False,'fps_benchmark':False,
         'public_server_probe':os.environ.get('TEST_SERVER', 'none'),
         'screenshots_require_manual_gameplay_review':True},indent=2)+'\n')

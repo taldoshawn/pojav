@@ -9,6 +9,10 @@ on:
         description: Successful Android APK run ID
         required: true
         type: string
+      probe_profiles:
+        description: Create and switch two local profiles through the UI
+        type: boolean
+        default: false
       server:
         description: Optional public server connection probe (no registration or chat)
         type: choice
@@ -63,6 +67,7 @@ jobs:
           PROBE_GAME: ${{ inputs.probe_game || 'false' }}
           PROBE_WORLD: ${{ inputs.probe_world || 'false' }}
           TEST_SERVER: ${{ inputs.server || 'none' }}
+          PROBE_PROFILES: ${{ inputs.probe_profiles || 'false' }}
         with:
           api-level: 35
           target: default
