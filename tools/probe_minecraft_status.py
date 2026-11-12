@@ -4,6 +4,10 @@
 A successful status response establishes reachability, not gameplay compatibility.
 """
 import io
+import hashlib
+import os
+import secrets
+import zlib
 import json
 from pathlib import Path
 import socket
@@ -83,7 +87,71 @@ def probe(host, protocol):
     return result
 
 
+def probe_login_start(host, protocol, use_srv_host, name):
+    """Compare initial routing only; stop before authentication/configuration."""
+    target, port = endpoint(host)
+    handshake_host = target if use_srv_host else host
+    result = {'host': host, 'endpoint': target, 'handshake_host': handshake_host,
+              'requested_protocol': protocol, 'phase': 'login_start_only',
+              'authenticated': False, 'gameplay_verified': False}
+    try:
+        with socket.create_connection((target, port), timeout=8) as sock:
+            sock.settimeout(8)
+            address = handshake_host.encode()
+            hello = b'\x00' + varint(protocol) + varint(len(address)) + address + struct.pack('>H', port) + b'\x02'
+            login = b'\x00' + varint(len(name)) + name.encode()
+            if protocol == 777:
+                identity = bytearray(hashlib.md5(('OfflinePlayer:' + name).encode()).digest())
+                identity[6] = (identity[6] & 0x0f) | 0x30
+                identity[8] = (identity[8] & 0x3f) | 0x80
+                login += identity
+            sock.sendall(varint(len(hello)) + hello + varint(len(login)) + login)
+            compressed = False
+            packets = []
+            with sock.makefile('rb') as stream:
+                for _ in range(4):
+                    size = read_varint(stream.read)
+                    if not 1 <= size <= 65536:
+                        raise ValueError('Unexpected login frame size')
+                    frame = stream.read(size)
+                    if len(frame) != size:
+                        raise EOFError('Truncated login frame')
+                    if compressed:
+                        body = io.BytesIO(frame)
+                        unpacked_size = read_varint(body.read)
+                        frame = body.read()
+                        if unpacked_size:
+                            if unpacked_size > 65536:
+                                raise ValueError('Unexpected decompressed login size')
+                            decoder = zlib.decompressobj()
+                            frame = decoder.decompress(frame, 65537)
+                            if len(frame) != unpacked_size or not decoder.eof:
+                                raise ValueError('Invalid compressed login frame')
+                    payload = io.BytesIO(frame)
+                    packet_id = read_varint(payload.read)
+                    packets.append(packet_id)
+                    if packet_id == 3:
+                        compressed = True
+                        continue
+                    result['server_packet_ids'] = packets
+                    result['response'] = {0:'disconnect', 1:'authentication_requested', 2:'login_success',
+                                          4:'plugin_query', 5:'cookie_query'}.get(packet_id, 'other_login_packet')
+                    if packet_id == 0:
+                        length = read_varint(payload.read)
+                        result['disconnect_reason'] = payload.read(min(length, 8192)).decode('utf-8', errors='replace')
+                    break
+    except (OSError, EOFError, ValueError, zlib.error) as error:
+        result.update(error=str(error), error_type=type(error).__name__)
+    return result
+
+
 if __name__ == '__main__':
     results = [probe(host, protocol) for host in ('jogar.mush.com.br', 'mc.hypixel.net') for protocol in (47, 777)]
+    if os.environ.get('LOGIN_PROBE') == 'true':
+        name = 'PR' + secrets.token_hex(5)
+        for protocol in (47, 777):
+            for srv in (False, True):
+                results.append(probe_login_start('jogar.mush.com.br', protocol, srv, name))
+                time.sleep(2)
     Path('server-status.json').write_text(json.dumps(results, ensure_ascii=False, indent=2) + '\n')
     print(json.dumps(results, ensure_ascii=False, indent=2))

@@ -1,6 +1,11 @@
 name: Read-only Minecraft server connectivity
 on:
   workflow_dispatch:
+    inputs:
+      login_probe:
+        description: Compare initial Mush login routing; no authentication, chat or registration
+        type: boolean
+        default: false
 permissions:
   contents: read
 jobs:
@@ -11,6 +16,8 @@ jobs:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
       - run: python3 -m unittest discover -s tests -p test_minecraft_status_probe.py
       - run: python3 tools/probe_minecraft_status.py
+        env:
+          LOGIN_PROBE: ${{ inputs.login_probe || 'false' }}
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
           name: server-connectivity-evidence
