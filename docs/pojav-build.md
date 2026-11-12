@@ -39,3 +39,21 @@ Troque `arm64-v8a` por `armeabi-v7a`, `x86` ou `x86_64` quando necessário.
 Verifique o arquivo `BUILD.json` e o SHA-256 junto do APK. Compilar e assinar não
 substitui testar a instalação, a primeira inicialização, o multiplayer e o
 desempenho num aparelho. O módulo de protocolo 47 ainda não oferece gameplay.
+
+## Assinar os artifacts com uma chave local permanente
+
+Quando a integração GitHub não permite configurar secrets, o workflow gera
+artifacts com assinatura temporária. Para distribuir uma release atualizável,
+baixe os quatro artifacts do mesmo run e use `tools/sign_pojav_apks.py`:
+
+```sh
+python3 tools/sign_pojav_apks.py --artifacts .local/artifacts --output .local/release \
+  --commit COMMIT_COMPLETO_DO_BUILD --version 0.1.0 \
+  --keystore .local/signing/release.keystore --password-file .local/signing/password.txt \
+  --build-tools "$ANDROID_HOME/build-tools/35.0.0"
+```
+
+O comando exige o mesmo commit nos quatro artifacts, verifica hashes e arquitetura,
+assina sem alterar os arquivos de entrada e valida o conteúdo público novamente.
+Publique somente os APKs resultantes, hashes e metadados públicos. Nunca envie a
+chave ou a senha. Preserve a chave para futuras atualizações.

@@ -37,7 +37,9 @@ def inspect(source, metadata, commit):
             raise ValueError('APK contains an unexpected native architecture')
         with archive.open(native) as stream:
             header = stream.read(20)
-        if header[:4] != b'\x7fELF' or header[5] != 1 or int.from_bytes(header[18:20], 'little') != MACHINES[abi]:
+        elf_class = 2 if abi in ('arm64-v8a', 'x86_64') else 1
+        if (len(header) != 20 or header[:4] != b'\x7fELF' or header[4] != elf_class
+                or header[5] != 1 or int.from_bytes(header[18:20], 'little') != MACHINES[abi]):
             raise ValueError('Native ELF header does not match the advertised architecture')
     return abi
 

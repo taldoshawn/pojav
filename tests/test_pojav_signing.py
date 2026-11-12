@@ -1,5 +1,4 @@
 """Reject mixed or modified artifacts before any signing key is used."""
-import importlib.util
 import hashlib
 import sys
 import tempfile
@@ -33,6 +32,12 @@ class ArtifactProvenanceTests(unittest.TestCase):
             metadata['sha256'] = hashlib.sha256(apk.read_bytes()).hexdigest()
             with self.assertRaises(ValueError):
                 signing.inspect(apk, metadata, commit)
+            for invalid in [b'\x7fELF', b'\x7fELF\x01\x01'+bytes(12)+(183).to_bytes(2,'little')]:
+                with zipfile.ZipFile(apk, 'w') as archive:
+                    archive.writestr('lib/arm64-v8a/libhorizon_android.so', invalid)
+                metadata['sha256'] = hashlib.sha256(apk.read_bytes()).hexdigest()
+                with self.assertRaises(ValueError):
+                    signing.inspect(apk, metadata, commit)
 
 
 if __name__ == '__main__':
