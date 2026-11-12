@@ -85,8 +85,7 @@ def main():
             raise FileExistsError(destination)
         subprocess.run([signer, 'sign', '--ks', str(args.keystore), '--ks-key-alias', args.alias,
                         '--ks-pass', 'file:' + str(args.password_file),
-                        '--key-pass', 'file:' + str(args.password_file),
-                        '--out', str(destination), str(source)], check=True)
+                        '--out', str(destination), str(source)], check=True, stdin=subprocess.DEVNULL)
         verification = subprocess.check_output([signer, 'verify', '--verbose', '--print-certs', str(destination)], text=True)
         (output / f'{abi}-signature.txt').write_text(verification)
         report = audit(destination, args.build_tools / 'aapt2', public=True, app_id=APP_ID)
