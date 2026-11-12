@@ -448,3 +448,63 @@ fn play_packets_do_not_use_modern_registry_or_string_encodings() {
     );
     assert!(Packet::decode(0, &[1, 2]).is_err());
 }
+
+#[test]
+fn compressed_legacy_play_carries_actions_and_world_updates() {
+    use horizon_protocol::legacy18::actions::{self, Digging};
+    let (client, mut server) = loopback();
+    let worker = std::thread::spawn(move || {
+        assert_hello(&mut server);
+        server.send(&[3, 0]).unwrap();
+        server.set_compression(0);
+        server.send(&success()).unwrap();
+        // A block at x=1, y=64, z=2 becomes stone (ID 1, metadata 0).
+        server.send(&[0x23, 0, 0, 0, 65, 0, 0, 0, 2, 16]).unwrap();
+        assert_eq!(server.recv().unwrap(), (9, vec![0, 2]));
+        assert_eq!(server.recv().unwrap(), (2, vec![0xac, 2, 1]));
+        assert_eq!(server.recv().unwrap(), (10, vec![]));
+        assert_eq!(
+            server.recv().unwrap(),
+            (7, vec![0, 0, 0, 0, 65, 0, 0, 0, 2, 1])
+        );
+        server.send(&[0x23, 0, 0, 0, 65, 0, 0, 0, 2, 0]).unwrap();
+    });
+    let (mut client, _) = legacy18::login(
+        client,
+        "localhost",
+        25565,
+        "Alex",
+        Duration::from_secs(5),
+        |_| panic!("unexpected authentication"),
+    )
+    .unwrap();
+    let (id, body) = client.recv().unwrap();
+    assert_eq!(
+        Packet::decode(id, &body).unwrap(),
+        Packet::BlockChange {
+            x: 1,
+            y: 64,
+            z: 2,
+            state: 16
+        }
+    );
+    client.send(&actions::held_slot(2).unwrap()).unwrap();
+    client
+        .send(&actions::interact_entity(300, true).unwrap())
+        .unwrap();
+    client.send(&actions::swing_arm()).unwrap();
+    client
+        .send(&actions::digging(Digging::Start, 1, 64, 2, 1).unwrap())
+        .unwrap();
+    let (id, body) = client.recv().unwrap();
+    assert_eq!(
+        Packet::decode(id, &body).unwrap(),
+        Packet::BlockChange {
+            x: 1,
+            y: 64,
+            z: 2,
+            state: 0
+        }
+    );
+    worker.join().unwrap();
+}

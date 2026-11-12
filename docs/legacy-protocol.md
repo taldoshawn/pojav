@@ -16,6 +16,12 @@ Implemented and covered by byte fixtures and local TCP peers:
 - Keepalive, chat, join, respawn and relative position codecs, and the legacy
   position/look response. Unknown play packets are explicitly returned as raw
   packets; they are not falsely interpreted as modern packets.
+- Outgoing attack/interaction, swing, digging, sprint/sneak, held hotbar slot,
+  ground-state and respawn packets, without modern hand or sequence fields.
+- Incoming health, held-slot, velocity and block-change updates. Legacy packed
+  positions retain X/Y/Z layout rather than the modern X/Z/Y layout.
+- A compressed loopback exchange checks action bytes and received block changes;
+  this is a transport test, not a Minecraft server or a gameplay test.
 - Individual and bulk chunk decoding with strict lengths, little-endian legacy
   states, packed light, sparse sections, biome arrays and unload handling.
   Section views borrow the input packet; they do not allocate block arrays.

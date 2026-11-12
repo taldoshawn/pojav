@@ -3,6 +3,7 @@
 //! This is a wire layer, not a second gameplay backend. It deliberately does not
 //! feed old registry IDs or packets into the modern game. Login enters Play
 //! directly: there is no Configuration phase or Login Acknowledged packet.
+pub mod actions;
 pub mod chunk;
 pub mod play;
 
