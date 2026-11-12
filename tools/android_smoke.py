@@ -46,6 +46,26 @@ try:
             (evidence/f'game-{i}.png').write_bytes(adb('exec-out', 'screencap', '-p').stdout)
             if not adb('shell', 'pidof', app, check=False).stdout.strip():
                 raise RuntimeError('App exited during resource/game probe')
+        if os.environ.get('PROBE_WORLD') == 'true':
+            # Coordinates verified against this Pixel 2 profile's screenshots
+            # and the title/create-world layout (GUI scale 4).
+            def tap_capture(x, y, name, delay=5):
+                adb('shell', 'input', 'tap', str(x), str(y))
+                time.sleep(delay)
+                (evidence/(name+'.png')).write_bytes(adb('exec-out', 'screencap', '-p').stdout)
+            tap_capture(896, 1010, 'main-menu')  # onboarding Continue
+            tap_capture(896, 500, 'create-world', 30)  # Singleplayer
+            tap_capture(896, 45, 'world-tab')
+            tap_capture(576, 200, 'flat-preset')
+            tap_capture(576, 1010, 'world-loading', 30)
+            for i in range(6):
+                time.sleep(30)
+                (evidence/f'world-{i}.png').write_bytes(adb('exec-out', 'screencap', '-p').stdout)
+                if not adb('shell', 'pidof', app, check=False).stdout.strip():
+                    raise RuntimeError('App exited during world probe')
+            adb('shell', 'input', 'swipe', '1100', '540', '1300', '700', '800')
+            time.sleep(10)
+            (evidence/'world-after-touch.png').write_bytes(adb('exec-out', 'screencap', '-p').stdout)
 except Exception as error:
     failed = str(error)
 finally:
