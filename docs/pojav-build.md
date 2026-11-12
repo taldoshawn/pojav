@@ -57,3 +57,16 @@ O comando exige o mesmo commit nos quatro artifacts, verifica hashes e arquitetu
 assina sem alterar os arquivos de entrada e valida o conteúdo público novamente.
 Publique somente os APKs resultantes, hashes e metadados públicos. Nunca envie a
 chave ou a senha. Preserve a chave para futuras atualizações.
+
+## Publicação sem enviar a chave privada ao Actions
+
+`tools/apk_signature_patch.py` permite transportar a assinatura feita localmente:
+referencia os dados comprimidos idênticos do artifact original e armazena somente
+os cabeçalhos e blocos públicos alterados. Os hashes SHA-256 fixam tanto o APK
+original quanto o APK final. O resultado deve ser idêntico, byte a byte, ao APK
+assinado localmente. Esses arquivos não contêm chave privada nem senha.
+
+O workflow `android-release.yml` baixa o run fixado, reconstrói os quatro APKs,
+verifica assinatura, conteúdo e hashes e anexa os arquivos à release em rascunho.
+Ele não publica automaticamente uma release nem aceita outro artifact silenciosamente.
+Uma nova versão exige novos metadados e novas assinaturas locais.
