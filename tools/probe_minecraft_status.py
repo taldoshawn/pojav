@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
-"""Read-only Java server status diagnostics. Never logs in or registers accounts.
+"""Java server status and opt-in initial login routing diagnostics.
+No credentials, account registration or chat are sent.
 
 A successful status response establishes reachability, not gameplay compatibility.
 """
@@ -93,7 +94,7 @@ def probe_login_start(host, protocol, use_srv_host, name):
     handshake_host = target if use_srv_host else host
     result = {'host': host, 'endpoint': target, 'handshake_host': handshake_host,
               'requested_protocol': protocol, 'phase': 'login_start_only',
-              'authenticated': False, 'gameplay_verified': False}
+              'authenticated': False, 'login_attempted': True, 'gameplay_verified': False}
     try:
         with socket.create_connection((target, port), timeout=8) as sock:
             sock.settimeout(8)
