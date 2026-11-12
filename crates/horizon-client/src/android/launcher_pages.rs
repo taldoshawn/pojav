@@ -309,6 +309,7 @@ pub(super) enum Action {
     SavedPage(bool),
     SelectAccount(usize),
     SelectOffline,
+    SelectSavedOffline(usize),
     WardrobeKind(bool),
     WardrobeSelect(usize),
     WardrobeImport,
@@ -1310,8 +1311,8 @@ impl Launcher {
         self.targets.push((eq_btn_rect, Action::OpenControlEditor));
 
         let brand_w = (eq_btn_rect[0] - 66.0).max(70.0);
-        ui.text(Face::SemiBold, 16.0, 54.0, 10.0, my3_text(), "Horizon");
-        let version_line = format!("Android {}", crate::backend::VERSION);
+        ui.text(Face::SemiBold, 16.0, 54.0, 10.0, my3_text(), "Pojav Rust");
+        let version_line = format!("Android {}", crate::updater::CURRENT_VERSION);
         let fitted_version = ui.fit_text(Face::Regular, 11.0, &version_line, brand_w);
         ui.text(
             Face::Regular,
@@ -7366,7 +7367,7 @@ impl Launcher {
                 self.login.visible = true;
                 self.login.offline = false;
                 self.login.ely = false;
-                if self.login.signed_in {
+                if self.login.signed_in || !self.login.saved_offline.is_empty() {
                     // Already signed in: open the selector, with the current
                     // Microsoft/Ely.by account called out, instead of asking
                     // the player to choose a provider again.
@@ -7399,7 +7400,7 @@ impl Launcher {
                 self.login.ely = false;
             }
             Some(Action::SavedPage(next)) => {
-                if next && self.login.account_offset + 3 < self.login.saved_accounts.len() {
+                if next && self.login.account_offset + 3 < self.login.saved_accounts.len() + self.login.saved_offline.len() {
                     self.login.account_offset += 3;
                 } else if !next {
                     self.login.account_offset = self.login.account_offset.saturating_sub(3);
@@ -7419,14 +7420,22 @@ impl Launcher {
                 self.login.refresh_status();
                 self.refresh_wardrobe_account();
             }
-            Some(Action::SelectOffline) => {
+            Some(Action::SelectOffline | Action::SelectSavedOffline(_)) => {
+                let requested = match action {
+                    Some(Action::SelectSavedOffline(index)) => self.login.saved_offline.get(index).cloned()
+                        .ok_or("That local profile is no longer available")?,
+                    _ => self.catalog.config.name.clone(),
+                };
+                let mut accounts = crate::account::Accounts::load();
+                let name = crate::local_profiles::remember(&mut accounts.offline, &requested)?;
+                accounts.selected = None;
+                accounts.offline_selected = Some(name.clone());
+                accounts.save()?;
+                self.catalog.config.name = name;
                 self.catalog.config.save(&self.home)?;
                 self.catalog.editing = None;
                 crate::platform::hide();
                 self.login.hide();
-                let mut accounts = crate::account::Accounts::load();
-                accounts.selected = None;
-                accounts.save()?;
                 self.session_ready = false;
                 self.prepared_session = None;
                 self.session_worker = None;

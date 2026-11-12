@@ -230,6 +230,14 @@ impl Config {
             config.apply_experimental_to_game(home);
             let _ = config.save(home);
         }
+        let accounts = crate::account::Accounts::load_from(&home.join("accounts.json"));
+        if accounts.selected().is_none()
+            && let Some(name) = accounts.offline_selected
+            && crate::account::valid_offline_name(&name)
+            && accounts.offline.iter().any(|saved| saved == &name)
+        {
+            config.name = name;
+        }
         config.name = truncate_player_name(&config.name);
         config.mod_source = crate::shader_catalog::Origin::Horizon;
         config.theme.sanitize();

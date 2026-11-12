@@ -24,6 +24,8 @@ mod browser;
 pub(crate) mod android;
 #[path = "android/dns.rs"]
 mod android_dns;
+#[path = "android/local_profiles.rs"]
+mod local_profiles;
 #[path = "android/catalog.rs"]
 mod catalog;
 #[path = "android/device_preferences.rs"]

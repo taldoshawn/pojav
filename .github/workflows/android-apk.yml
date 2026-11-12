@@ -92,6 +92,8 @@ jobs:
           python3 -m unittest discover -s tests -p 'test_android_release_audit.py'
           cargo test -p horizon-protocol --lib --test legacy18 --locked
           python3 tools/test_android_updater.py
+          rustc --edition=2024 --test crates/horizon-client/src/android/local_profiles.rs -o /tmp/pojav-local-profile-tests
+          /tmp/pojav-local-profile-tests
       - name: Prepare verified private engine inputs
         run: python3 tools/android_prepare.py --java-home "$JAVA_HOME_25_X64"
       - name: Restore this fork's signing identity

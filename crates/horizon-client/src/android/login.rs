@@ -30,6 +30,7 @@ pub(super) struct Login {
     pub providers: bool,
     pub offline: bool,
     pub saved_accounts: Vec<Account>,
+    pub saved_offline: Vec<String>,
     pub account_offset: usize,
     pub ely: bool,
     pub username: String,
@@ -50,6 +51,7 @@ impl Login {
             providers: false,
             offline: false,
             saved_accounts: vec![],
+            saved_offline: vec![],
             account_offset: 0,
             ely: false,
             username: String::new(),
@@ -70,6 +72,7 @@ impl Login {
         let accounts = Accounts::load();
         let account = accounts.selected().cloned();
         self.saved_accounts = accounts.accounts;
+        self.saved_offline = accounts.offline;
         self.profile = account.as_ref().map(|a| a.name.clone());
         self.signed_in = account.is_some_and(|a| {
             account::store()
@@ -378,7 +381,7 @@ impl Login {
         } else if self.offline {
             (
                 "Offline profile",
-                "A local name for single-player and LAN".into(),
+                "Single-player, LAN and servers that accept offline profiles".into(),
             )
         } else {
             let line = if let Some(name) = &self.profile {
@@ -538,32 +541,24 @@ impl Login {
                 offline_label,
                 "Offline profile",
                 offline_current,
-                Action::SelectOffline,
+                if offline_name.trim().is_empty() { Action::OfflineAccount } else { Action::SelectOffline },
             );
-            for (row, (index, account)) in self
-                .saved_accounts
-                .iter()
-                .enumerate()
-                .skip(self.account_offset)
-                .take(3)
-                .enumerate()
-            {
-                let detail = if account.provider == account::Provider::Ely {
-                    "Ely.by"
+            let total = self.saved_accounts.len() + self.saved_offline.len();
+            for (row, index) in (self.account_offset..total).take(3).enumerate() {
+                let (name, detail, current, action) = if let Some(account) = self.saved_accounts.get(index) {
+                    (account.name.as_str(),
+                     if account.provider == account::Provider::Ely { "Ely.by" } else { "Microsoft" },
+                     self.profile.as_deref() == Some(account.name.as_str()),
+                     Action::SelectAccount(index))
                 } else {
-                    "Microsoft"
+                    let local_index = index - self.saved_accounts.len();
+                    let name = &self.saved_offline[local_index];
+                    (name.as_str(), "Saved local profile", self.profile.is_none() && name == offline_name,
+                     Action::SelectSavedOffline(local_index))
                 };
-                let current = self.profile.as_deref() == Some(account.name.as_str());
                 let cy = content_y + (row + 1) as f32 * (row_h + 6.0);
-                self.account_row(
-                    ui,
-                    targets,
-                    [x + 20.0, cy, w - 40.0, row_h],
-                    &account.name,
-                    detail,
-                    current,
-                    Action::SelectAccount(index),
-                );
+                self.account_row(ui, targets, [x + 20.0, cy, w - 40.0, row_h],
+                                 name, detail, current, action);
             }
             let nav = 36.0;
             button(
@@ -722,7 +717,7 @@ impl Login {
                 x + 20.0,
                 content_y + 88.0,
                 w - 40.0,
-                "This name is local; it is not an online identity.",
+                "Online-mode servers such as Hypixel require Microsoft sign-in.",
                 login_muted(),
             );
             if focused {
@@ -740,7 +735,7 @@ impl Login {
                 ui,
                 targets,
                 [x + 20.0, footer_y, w - 40.0, 42.0],
-                "Use offline account",
+                "Save and use local profile",
                 Action::SelectOffline,
                 true,
             );
