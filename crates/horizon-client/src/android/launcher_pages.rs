@@ -383,6 +383,7 @@ pub(super) enum Action {
     ToggleZeroLatencyTouch,
     ToggleFastChunkUpload,
     // Controls & Control Editor actions
+    KeyboardControlPreset,
     OpenControlEditor,
     CloseControlEditor,
     ControlProfileChooser,
@@ -5930,7 +5931,7 @@ impl Launcher {
                 let fps = crate::fps_hud::Preferences::load(&game_home,
                     fps_mods.enabled.contains("fps_overlay") && !fps_mods.disabled.contains("fps_overlay"));
                 let studio_offset = 196.0;
-                let count = 30;
+                let count = 31;
                 let max_scroll =
                     (studio_offset + count as f32 * step_y - (list_bottom - list_top)).max(0.0);
                 self.catalog.scroll = self.catalog.scroll.clamp(0.0, max_scroll);
@@ -6015,7 +6016,9 @@ impl Launcher {
                 let invert_y_active = opts.invert_y || touch_cfg.invert_y;
                 let sprint_latch_active = opts.toggle_sprint || touch_cfg.sprint_toggle;
 
-                let rows: [(&str, &str, SettingControl<'_>); 30] = [
+                let rows: [(&str, &str, SettingControl<'_>); 31] = [
+                    ("Keyboard controls", "Create an editable WASD layout with keyboard and mouse buttons",
+                     SettingControl::Button("Create WASD layout", Action::KeyboardControlPreset, false)),
                     ("FPS COUNTER", "Measured frames; does not change the frame limit",
                      SettingControl::SectionHeader("FPS", Icon::Settings)),
                     ("Show FPS", "Native Rust counter during gameplay",
@@ -6809,7 +6812,7 @@ impl Launcher {
                         46..=75 => 90,
                         76..=105 => 120,
                         106..=200 => 260,
-                        _ => 30,
+                        _ => 31,
                     };
                     if s.max_fps >= 260 {
                         s.vsync = false;
@@ -6973,6 +6976,45 @@ impl Launcher {
                     style.label(),
                     touch.preset_name
                 );
+            }
+            Some(Action::KeyboardControlPreset) => {
+                use horizon_client::touch::{CustomButton, Settings};
+                use horizon_client::touch::layout::{Control, Placement};
+                let home = self.catalog.config.game_home(&self.home);
+                let mut preset = Settings::default();
+                for layout in &mut preset.layouts {
+                    layout[Control::Move as usize].visible_in_game = false;
+                }
+                for (key, label, x, y) in [
+                    ("key.keyboard.w", "W", 0.14, 0.62),
+                    ("key.keyboard.a", "A", 0.07, 0.76),
+                    ("key.keyboard.s", "S", 0.14, 0.76),
+                    ("key.keyboard.d", "D", 0.21, 0.76),
+                    ("key.keyboard.space", "SPACE", 0.88, 0.82),
+                    ("key.keyboard.left.shift", "SHIFT", 0.29, 0.83),
+                    ("key.keyboard.left.control", "CTRL", 0.29, 0.68),
+                    ("key.keyboard.e", "E", 0.70, 0.16),
+                    ("key.keyboard.q", "Q", 0.78, 0.16),
+                    ("key.keyboard.t", "T", 0.86, 0.16),
+                    ("key.mouse.left", "LMB", 0.78, 0.57),
+                    ("key.mouse.right", "RMB", 0.90, 0.57),
+                ] {
+                    let mut button = CustomButton::new(key.into(), 0);
+                    button.custom_label = label.into();
+                    let mut placement = Placement::new(x, y, 0.10);
+                    placement.visible_in_game = true;
+                    placement.visible_in_menu = false;
+                    button.layouts = [placement; 3];
+                    preset.custom_buttons.push(button);
+                }
+                for layout in &mut preset.layouts {
+                    for control in [Control::Jump, Control::Sneak, Control::Sprint,
+                                    Control::Inventory, Control::Chat, Control::Attack, Control::Use] {
+                        layout[control as usize].visible_in_game = false;
+                    }
+                }
+                preset.save_new_preset(&home, "WASD keyboard", "Keyboard and mouse buttons; edit positions and sizes in Controls")?;
+                self.catalog.status = "WASD layout selected. Customize it with Open Editor.".into();
             }
             Some(Action::OpenControlEditor) => {
                 let game_home = self.catalog.config.game_home(&self.home);
