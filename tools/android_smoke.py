@@ -7,6 +7,17 @@ evidence = Path('evidence')
 apk = next(Path('apk').glob('*.apk'))
 def adb(*args, check=True):
     return subprocess.run(['adb', *args], check=check, capture_output=True, timeout=120)
+def adb_privilege(root):
+    # adbd may disconnect before acknowledging a successful restart. Verify
+    # the new daemon's UID instead of treating its transport exit as failure.
+    command = 'root' if root else 'unroot'
+    result = adb(command, check=False)
+    adb('wait-for-device')
+    uid = adb('shell', 'id', '-u').stdout.strip()
+    if (uid == b'0') != root:
+        raise RuntimeError('adbd privilege transition failed: ' +
+                           (result.stdout + result.stderr).decode(errors='replace'))
+
 failed = None
 startup_passed = False
 profiles_verified = False
@@ -23,8 +34,7 @@ try:
             raise ValueError('Unsupported public server probe')
         # Seed only public launcher preferences in this disposable emulator.
         # This does not create a server account, send chat, or alter authentication.
-        adb('root')
-        adb('wait-for-device')
+        adb_privilege(True)
         data = '/data/user/0/' + app
         uid = adb('shell', 'stat', '-c', '%u', data).stdout.decode().strip()
         if not uid.isdigit():
@@ -37,8 +47,7 @@ try:
         adb('push', str(fixture), data + '/files/android-launcher.json')
         adb('shell', 'chown', uid + ':' + uid, data + '/files/android-launcher.json')
         adb('shell', 'chmod', '600', data + '/files/android-launcher.json')
-        adb('unroot')
-        adb('wait-for-device')
+        adb_privilege(False)
     adb('logcat', '-c')
     started = adb('shell', 'am', 'start', '-W', '-n', app+'/com.google.androidgamesdk.GameActivity', check=False)
     (evidence/'start.txt').write_bytes(started.stdout + started.stderr)
@@ -88,8 +97,7 @@ try:
         adb('shell', 'am', 'start', '-W', '-n', app+'/com.google.androidgamesdk.GameActivity')
         time.sleep(10)
         profile_capture('profile-after-restart')
-        adb('root')
-        adb('wait-for-device')
+        adb_privilege(True)
         files = '/data/user/0/' + app + '/files/'
         accounts = json.loads(adb('shell', 'cat', files+'accounts.json').stdout)
         config = json.loads(adb('shell', 'cat', files+'android-launcher.json').stdout)
@@ -97,8 +105,7 @@ try:
                   'selected_local': accounts.get('offline_selected'),
                   'selected_online': accounts.get('selected'), 'launcher_name': config.get('name')}
         (evidence/'local-profiles.json').write_text(json.dumps(report, indent=2)+'\n')
-        adb('unroot')
-        adb('wait-for-device')
+        adb_privilege(False)
         if report != {'saved_names':['PojavOne','PojavTwo'], 'selected_local':'PojavOne',
                       'selected_online':None, 'launcher_name':'PojavOne'}:
             raise RuntimeError('Local profile creation/switch/restart failed; see screenshots and local-profiles.json')
