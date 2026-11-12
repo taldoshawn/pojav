@@ -24,3 +24,21 @@ ser inspecionadas e cada etapa deve ter uma evidência própria.
 
 A cobertura de quatro arquiteturas não garante todos os aparelhos. Android mínimo,
 GPU, suporte do driver, RAM e espaço disponível continuam sendo requisitos.
+
+## Testes posteriores à alpha publicada
+
+- [Build #3](https://github.com/taldoshawn/pojav/actions/runs/43319209497):
+  quatro arquiteturas compiladas com múltiplos perfis locais. As capturas do
+  [teste da interface](https://github.com/taldoshawn/pojav/actions/runs/43321841597)
+  mostram PojavOne e PojavTwo, com PojavOne selecionado após reiniciar. A leitura
+  automatizada dos arquivos falhou na transição de privilégios do adbd; isso não
+  é um teste integral aprovado. O harness passou a verificar o UID após reconectar.
+- [Diagnóstico de servidores](https://github.com/taldoshawn/pojav/actions/runs/43322674531):
+  status acessível no Mush e Hypixel. No início do login, Mush respondeu pedindo
+  validação em `mush.com.br/validar`, tanto com o endereço original quanto com o
+  destino SRV no protocolo moderno. Não foi realizada validação, registro de conta
+  ou entrada em partida. Não há evidência para alterar o hostname do cliente.
+- [Build #4](https://github.com/taldoshawn/pojav/actions/runs/43322601262):
+  inclui opções do contador nativo de FPS em Settings > Controls, canto da tela e
+  mínimo/1% low. Compilação e teste visual ainda pendentes na redação deste registro.
+  Essas mudanças não estão no APK da alpha.1 acima.
