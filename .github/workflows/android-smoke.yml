@@ -1,0 +1,103 @@
+name: Android installation smoke test
+on:
+  workflow_run:
+    workflows: [Android APK]
+    types: [completed]
+  workflow_dispatch:
+    inputs:
+      run_id:
+        description: Successful Android APK run ID
+        required: true
+        type: string
+      run_number:
+        description: Android APK run number
+        required: true
+        type: string
+
+permissions:
+  actions: read
+  contents: read
+
+jobs:
+  smoke:
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      (github.event.workflow_run.conclusion == 'success' &&
+       github.event.workflow_run.head_branch == 'main' &&
+       github.event.workflow_run.head_repository.full_name == github.repository)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - name: Download this repository's x86_64 APK
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RUN_ID: ${{ github.event.workflow_run.id || inputs.run_id }}
+          RUN_NUMBER: ${{ github.event.workflow_run.run_number || inputs.run_number }}
+        run: |
+          mkdir -p apk evidence
+          gh run download "$RUN_ID" --repo "$GITHUB_REPOSITORY" \
+            --name "pojav-rust-$RUN_NUMBER-x86_64" --dir apk
+          (cd apk && sha256sum --check SHA256SUMS.txt)
+      - name: Enable emulator acceleration
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+      - name: Install and start the actual APK
+        uses: reactivecircus/android-emulator-runner@a421e43855164a8197daf9d8d40fe71c6996bb0d
+        with:
+          api-level: 35
+          target: default
+          arch: x86_64
+          profile: pixel_2
+          ram-size: 4096M
+          disk-size: 4096M
+          disable-animations: true
+          emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none -no-snapshot-save
+          script: |
+            python3 - <<'PY'
+            from pathlib import Path
+            import json, subprocess, time
+            app = 'dev.taldoshawn.pojav'
+            evidence = Path('evidence')
+            apk = next(Path('apk').glob('*.apk'))
+            def adb(*args, check=True):
+                return subprocess.run(['adb', *args], check=check, capture_output=True)
+            install = adb('install', '-r', '-g', str(apk))
+            (evidence/'install.txt').write_bytes(install.stdout + install.stderr)
+            adb('logcat', '-c')
+            started = adb('shell', 'am', 'start', '-W', '-n', app+'/com.google.androidgamesdk.GameActivity')
+            (evidence/'start.txt').write_bytes(started.stdout + started.stderr)
+            failed = None
+            try:
+                for _ in range(12):
+                    time.sleep(5)
+                    pid = adb('shell', 'pidof', app, check=False).stdout.decode().strip()
+                    if not pid:
+                        raise RuntimeError('App process exited during startup')
+                activity = adb('shell', 'dumpsys', 'activity', 'activities').stdout
+                (evidence/'activities.txt').write_bytes(activity)
+                if not any(app.encode() in line and (b'ResumedActivity' in line or b'topResumedActivity' in line) for line in activity.splitlines()):
+                    raise RuntimeError('App activity is not resumed')
+                app_log = adb('logcat', '-d', '--pid', pid).stdout
+                if any(marker in app_log for marker in [b'FATAL EXCEPTION', b'Fatal signal', b'panicked at']):
+                    raise RuntimeError('App crash marker in logcat')
+            except Exception as error:
+                failed = str(error)
+            finally:
+                (evidence/'logcat.txt').write_bytes(adb('logcat', '-d', check=False).stdout)
+                (evidence/'startup.png').write_bytes(adb('exec-out', 'screencap', '-p', check=False).stdout)
+                (evidence/'RESULT.json').write_text(json.dumps({'package':app,'installed':True,
+                    'startup_passed':failed is None,'failure':failed,'test':'x86_64 emulator API 35 startup only',
+                    'world_or_multiplayer_tested':False,'fps_benchmark':False},indent=2)+'\n')
+            if failed:
+                raise SystemExit(failed)
+            PY
+      - name: Upload startup evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: android-startup-evidence
+          path: evidence/
+          if-no-files-found: warn
+          retention-days: 30
