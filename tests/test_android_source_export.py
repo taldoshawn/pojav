@@ -15,6 +15,20 @@ class SourceExportTests(unittest.TestCase):
         for name in ['LICENSE', 'THIRD_PARTY_NOTICES.md', 'Cargo.toml', 'README.md']:
             (root / name).write_text('Original source\n', encoding='utf-8')
 
+    def test_native_hook_catalog_and_native_mod_sources_survive_export(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            self.source(root)
+            (root / 'native-hooks.json').write_text('{"hooks": []}\n')
+            source = root / 'native-mods/example/mixins/hook.rs'
+            source.parent.mkdir(parents=True)
+            source.write_text('pub fn hook() {}\n')
+            output = root / '.local/source.zip'
+            export.export(root, output)
+            with zipfile.ZipFile(output) as archive:
+                self.assertEqual(archive.read('native-hooks.json'), b'{"hooks": []}\n')
+                self.assertEqual(archive.read('native-mods/example/mixins/hook.rs'), b'pub fn hook() {}\n')
+
     def test_private_inputs_are_excluded_and_workflows_inactive(self):
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)

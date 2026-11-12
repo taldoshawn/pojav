@@ -14,11 +14,11 @@ import zipfile
 from check_public_tree import prohibited
 
 ROOT = Path(__file__).resolve().parents[1]
-DIRECTORIES = {'.githooks', '.github', 'benchmarks', 'crates', 'docs', 'launcher',
-               'mods', 'packaging', 'packs', 'tests', 'third_party', 'tools', 'website', 'xtask'}
+DIRECTORIES = {'.githooks', '.github', 'bench', 'benchmarks', 'crates', 'docs', 'launcher',
+               'mods', 'native-mods', 'packaging', 'packs', 'roadmap', 'tests', 'third_party', 'tools', 'website', 'xtask'}
 FILES = {'.dockerignore', '.gitattributes', '.gitignore', 'AGENTS.md', 'CLAUDE.md',
          'Cargo.lock', 'Cargo.toml', 'rust-toolchain.toml', 'CONTRIBUTING.md', 'CONTRIBUTING_ANDROID.md', 'LICENSE', 'README.md',
-         'research-lock.json', 'THIRD_PARTY_NOTICES.md'}
+         'research-lock.json', 'native-hooks.json', 'ROADMAP.md', 'THIRD_PARTY_NOTICES.md'}
 SKIP = {'.git', '.local', 'target', 'build', 'dist', 'logs', 'node_modules',
         '__pycache__', '.gradle', '.venv', '.horizon-cache'}
 SECRET = re.compile(rb'(?:gh[pousr]_[A-Za-z0-9]{36,}|github_pat_[A-Za-z0-9_]{60,}|'
@@ -70,8 +70,12 @@ def export(root, output):
     required = {'LICENSE', 'THIRD_PARTY_NOTICES.md', 'Cargo.toml', 'README.md'}
     if not required.issubset({e['path'] for e in entries}):
         raise ValueError('Missing source/license files')
-    for template, destination in [('packaging/android/source-checks.yml', '.github/workflows/android-source.yml'),
-                                  ('packaging/android/dev-builds.yml', '.github/workflows/android-dev.yml')]:
+    templates = [('packaging/android/source-checks.yml', '.github/workflows/android-source.yml'),
+                 ('packaging/android/dev-builds.yml', '.github/workflows/android-dev.yml')]
+    if (root / 'packaging/android/pojav-apk.yml').is_file():
+        templates = [('packaging/android/pojav-apk.yml', '.github/workflows/android-apk.yml'),
+                     ('packaging/android/pojav-smoke.yml', '.github/workflows/android-smoke.yml')]
+    for template, destination in templates:
         workflow = root / template
         if workflow.is_file():
             data = workflow.read_bytes()
