@@ -15,6 +15,28 @@ try:
     if install.returncode or b'Success' not in install.stdout:
         raise RuntimeError('APK installation failed; see install.txt')
     installed = True
+    server = os.environ.get('TEST_SERVER', 'none')
+    if server != 'none':
+        if server != 'mush':
+            raise ValueError('Unsupported public server probe')
+        # Seed only public launcher preferences in this disposable emulator.
+        # This does not create a server account, send chat, or alter authentication.
+        adb('root')
+        adb('wait-for-device')
+        data = '/data/user/0/' + app
+        uid = adb('shell', 'stat', '-c', '%u', data).stdout.decode().strip()
+        if not uid.isdigit():
+            raise RuntimeError('Could not resolve the installed app UID')
+        adb('shell', 'mkdir', '-p', data + '/files')
+        adb('shell', 'chown', uid + ':' + uid, data + '/files')
+        fixture = Path('launcher-test-profile.json')
+        fixture.write_text(json.dumps({'name': 'PRust' + os.environ.get('GITHUB_RUN_ID', 'Probe')[-8:],
+                                      'server': 'jogar.mush.com.br'}))
+        adb('push', str(fixture), data + '/files/android-launcher.json')
+        adb('shell', 'chown', uid + ':' + uid, data + '/files/android-launcher.json')
+        adb('shell', 'chmod', '600', data + '/files/android-launcher.json')
+        adb('unroot')
+        adb('wait-for-device')
     adb('logcat', '-c')
     started = adb('shell', 'am', 'start', '-W', '-n', app+'/com.google.androidgamesdk.GameActivity', check=False)
     (evidence/'start.txt').write_bytes(started.stdout + started.stderr)
@@ -73,6 +95,8 @@ finally:
     (evidence/'startup.png').write_bytes(adb('exec-out', 'screencap', '-p', check=False).stdout)
     (evidence/'RESULT.json').write_text(json.dumps({'package':app,'installed':installed,
         'startup_passed':failed is None,'failure':failed,'test':'x86_64 emulator API 35 startup only',
-        'world_or_multiplayer_tested':False,'fps_benchmark':False},indent=2)+'\n')
+        'world_or_multiplayer_tested':False,'fps_benchmark':False,
+        'public_server_probe':os.environ.get('TEST_SERVER', 'none'),
+        'screenshots_require_manual_gameplay_review':True},indent=2)+'\n')
 if failed:
     raise SystemExit(failed)

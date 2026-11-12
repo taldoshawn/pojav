@@ -9,6 +9,11 @@ on:
         description: Successful Android APK run ID
         required: true
         type: string
+      server:
+        description: Optional public server connection probe (no registration or chat)
+        type: choice
+        options: [none, mush]
+        default: none
       probe_world:
         description: Also explore creating a flat world (requires probe_game)
         type: boolean
@@ -57,6 +62,7 @@ jobs:
         env:
           PROBE_GAME: ${{ inputs.probe_game || 'false' }}
           PROBE_WORLD: ${{ inputs.probe_world || 'false' }}
+          TEST_SERVER: ${{ inputs.server || 'none' }}
         with:
           api-level: 35
           target: default
