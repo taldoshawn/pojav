@@ -9,6 +9,10 @@ on:
         description: Successful Android APK run ID
         required: true
         type: string
+      probe_game:
+        description: Explore resource download and launch, retaining screenshots
+        type: boolean
+        default: false
       run_number:
         description: Android APK run number
         required: true
@@ -46,6 +50,8 @@ jobs:
           sudo udevadm trigger --name-match=kvm
       - name: Install and start the actual APK
         uses: reactivecircus/android-emulator-runner@a421e43855164a8197daf9d8d40fe71c6996bb0d
+        env:
+          PROBE_GAME: ${{ inputs.probe_game || 'false' }}
         with:
           api-level: 35
           target: default

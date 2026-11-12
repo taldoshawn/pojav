@@ -1,12 +1,12 @@
 #!/usr/bin/env python3
 """Install the public APK and retain startup evidence from an isolated emulator."""
 from pathlib import Path
-import json, subprocess, time
+import json, subprocess, time, os
 app = 'dev.taldoshawn.pojav'
 evidence = Path('evidence')
 apk = next(Path('apk').glob('*.apk'))
 def adb(*args, check=True):
-    return subprocess.run(['adb', *args], check=check, capture_output=True)
+    return subprocess.run(['adb', *args], check=check, capture_output=True, timeout=120)
 failed = None
 installed = False
 try:
@@ -32,6 +32,20 @@ try:
     app_log = adb('logcat', '-d', '--pid', pid).stdout
     if any(marker in app_log for marker in [b'FATAL EXCEPTION', b'Fatal signal', b'panicked at']):
         raise RuntimeError('App crash marker in logcat')
+    (evidence/'launcher.png').write_bytes(adb('exec-out', 'screencap', '-p').stdout)
+    if os.environ.get('PROBE_GAME') == 'true':
+        # Pixel 2 landscape, fixed profile above. This explores UI and records
+        # screenshots for inspection; it does not assert successful gameplay.
+        adb('shell', 'input', 'tap', '1300', '190')
+        for i in range(6):
+            time.sleep(30)
+            (evidence/f'download-{i}.png').write_bytes(adb('exec-out', 'screencap', '-p').stdout)
+        adb('shell', 'input', 'tap', '1300', '190')
+        for i in range(4):
+            time.sleep(30)
+            (evidence/f'game-{i}.png').write_bytes(adb('exec-out', 'screencap', '-p').stdout)
+            if not adb('shell', 'pidof', app, check=False).stdout.strip():
+                raise RuntimeError('App exited during resource/game probe')
 except Exception as error:
     failed = str(error)
 finally:
