@@ -19,7 +19,7 @@ jobs:
         run: gh run download 43251468836 --repo "$GITHUB_REPOSITORY" --dir artifacts
       - name: Restore and verify offline signatures
         run: |
-          sdkmanager --install 'build-tools;35.0.0' >/dev/null
+          "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --sdk_root="$ANDROID_HOME" --install 'build-tools;35.0.0' >/dev/null
           mkdir dist
           for abi in arm64-v8a armeabi-v7a x86 x86_64; do
             apk="dist/Pojav-Rust-0.1.0-$abi.apk"
