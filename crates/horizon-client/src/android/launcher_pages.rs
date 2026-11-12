@@ -310,6 +310,9 @@ pub(super) enum Action {
     SelectAccount(usize),
     SelectOffline,
     SelectSavedOffline(usize),
+    ToggleFpsHud,
+    CycleFpsHudCorner,
+    ToggleFpsHudLows,
     WardrobeKind(bool),
     WardrobeSelect(usize),
     WardrobeImport,
@@ -5923,8 +5926,11 @@ impl Launcher {
                 ui.set_clip(None);
             }
             SettingsCategory::Controls => {
+                let fps_mods = horizon_client::mod_list::ModList::load(&game_home);
+                let fps = crate::fps_hud::Preferences::load(&game_home,
+                    fps_mods.enabled.contains("fps_overlay") && !fps_mods.disabled.contains("fps_overlay"));
                 let studio_offset = 196.0;
-                let count = 26;
+                let count = 30;
                 let max_scroll =
                     (studio_offset + count as f32 * step_y - (list_bottom - list_top)).max(0.0);
                 self.catalog.scroll = self.catalog.scroll.clamp(0.0, max_scroll);
@@ -6009,7 +6015,15 @@ impl Launcher {
                 let invert_y_active = opts.invert_y || touch_cfg.invert_y;
                 let sprint_latch_active = opts.toggle_sprint || touch_cfg.sprint_toggle;
 
-                let rows: [(&str, &str, SettingControl<'_>); 26] = [
+                let rows: [(&str, &str, SettingControl<'_>); 30] = [
+                    ("FPS COUNTER", "Measured frames; does not change the frame limit",
+                     SettingControl::SectionHeader("FPS", Icon::Settings)),
+                    ("Show FPS", "Native Rust counter during gameplay",
+                     SettingControl::Toggle(fps.enabled, Action::ToggleFpsHud)),
+                    ("FPS position", "Choose a corner for the counter",
+                     SettingControl::Button(fps.corner_label(), Action::CycleFpsHudCorner, false)),
+                    ("Show minimum and 1% low FPS", "Shows slow frames as well as the current frame rate",
+                     SettingControl::Toggle(fps.lows, Action::ToggleFpsHudLows)),
                     (
                         "LAYOUT STUDIO, IMPORT & EXPORT PRESETS",
                         "Material 3 HUD editor, automatic MCPE/GoyControl file importer & location picker export",
@@ -7651,6 +7665,33 @@ impl Launcher {
                         self.catalog.search(&self.home);
                     }
                 }
+            }
+            Some(Action::ToggleFpsHud | Action::CycleFpsHudCorner | Action::ToggleFpsHudLows) => {
+                let home = self.catalog.config.game_home(&self.home);
+                let mut mods = horizon_client::mod_list::ModList::load(&home);
+                let mut prefs = crate::fps_hud::Preferences::load(&home,
+                    mods.enabled.contains("fps_overlay") && !mods.disabled.contains("fps_overlay"));
+                match action {
+                    Some(Action::ToggleFpsHud) => {
+                        prefs.enabled = !prefs.enabled;
+                        if prefs.enabled {
+                            horizon_client::jar_transpiler::install_builtin_horizon_mod("fps_overlay", &home)?;
+                            mods.enabled.insert("fps_overlay".into());
+                            mods.disabled.remove("fps_overlay");
+                        } else {
+                            mods.enabled.remove("fps_overlay");
+                            mods.disabled.insert("fps_overlay".into());
+                        }
+                        std::fs::create_dir_all(&home)?;
+                        std::fs::write(home.join("horizon-mods.txt"), mods.serialize())?;
+                        horizon_client::mod_list::sync_live_state(&mods.enabled, &mods.disabled);
+                    }
+                    Some(Action::CycleFpsHudCorner) => prefs.corner = (prefs.corner + 1) % 4,
+                    Some(Action::ToggleFpsHudLows) => prefs.lows = !prefs.lows,
+                    _ => unreachable!(),
+                }
+                prefs.save(&home)?;
+                self.catalog.refresh(&self.home);
             }
             Some(Action::Profile) => self.open_chooser(chooser::Kind::Profile),
             Some(Action::Renderer) => self.open_chooser(chooser::Kind::Renderer),

@@ -94,6 +94,8 @@ jobs:
           python3 tools/test_android_updater.py
           rustc --edition=2024 --test crates/horizon-client/src/android/local_profiles.rs -o /tmp/pojav-local-profile-tests
           /tmp/pojav-local-profile-tests
+          rustc --edition=2024 --test crates/horizon-client/src/android/fps_hud.rs -o /tmp/pojav-fps-hud-tests
+          /tmp/pojav-fps-hud-tests
       - name: Prepare verified private engine inputs
         run: python3 tools/android_prepare.py --java-home "$JAVA_HOME_25_X64"
       - name: Restore this fork's signing identity

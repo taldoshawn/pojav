@@ -24,6 +24,8 @@ mod browser;
 pub(crate) mod android;
 #[path = "android/dns.rs"]
 mod android_dns;
+#[path = "android/fps_hud.rs"]
+mod fps_hud;
 #[path = "android/local_profiles.rs"]
 mod local_profiles;
 #[path = "android/catalog.rs"]
