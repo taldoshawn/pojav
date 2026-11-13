@@ -277,6 +277,53 @@ impl Game<'_> {
     fn legacy_misc(&mut self, id: i32, bytes: &[u8]) -> Result<()> {
         use horizon_protocol::buf::Reader;
         let mut r = Reader::new(bytes);
+        if id == 0x0e {
+            let object = horizon_protocol::legacy18::entity::Object::read(bytes)?;
+            let Some(name) = object.name() else {
+                return Ok(());
+            };
+            let kind = self
+                .remote
+                .as_ref()
+                .and_then(|remote| {
+                    remote
+                        .builtin
+                        .get("minecraft:entity_type")?
+                        .id(&format!("minecraft:{name}"))
+                })
+                .ok_or("legacy object type missing from renderer registry")?;
+            let data = match object.kind {
+                // Falling blocks use ID:12 + metadata:4, unlike chunk states.
+                70 => {
+                    let block = (object.data as u32) & 4095;
+                    let meta = ((object.data as u32) >> 12) & 15;
+                    self.legacy_state(((block << 4) | meta) as u16)? as i32
+                }
+                71 => match object.data {
+                    0 => 3,
+                    1 => 4,
+                    2 => 2,
+                    3 => 5,
+                    _ => 2,
+                },
+                10 | 73 => 0, // Minecart subtype/potion damage is not a modern owner ID.
+                _ => object.data,
+            };
+            return self.handle_packet(C::AddEntity(play::AddEntity {
+                id: object.id,
+                uuid: horizon_protocol::crypto::offline_uuid(&format!(
+                    "legacy-object-{}",
+                    object.id
+                )),
+                kind,
+                position: object.position,
+                velocity: object.velocity,
+                yaw: object.yaw,
+                pitch: object.pitch,
+                head_yaw: object.yaw,
+                data,
+            }));
+        }
         if id == 0x38 {
             let action = r.varint()?;
             let count = r.count(1024)?;
@@ -422,6 +469,29 @@ impl Game<'_> {
         }
         let mut metadata = None;
         let packet = match id {
+            0x1d | 0x1e => {
+                let entity = r.varint()?;
+                let legacy_effect = r.u8()?;
+                let name = horizon_protocol::legacy18::entity::effect_name(legacy_effect)
+                    .ok_or("unknown legacy effect")?;
+                let effect = self
+                    .remote_effect_network_id(name)
+                    .ok_or("legacy effect missing from registry")?;
+                if id == 0x1e {
+                    C::RemoveMobEffect(play::RemoveMobEffect { id: entity, effect })
+                } else {
+                    let amplifier = i32::from(r.u8()?);
+                    let duration = r.varint()?;
+                    let hidden = r.bool()?;
+                    C::UpdateMobEffect(play::UpdateMobEffect {
+                        id: entity,
+                        effect,
+                        amplifier,
+                        duration,
+                        flags: if hidden { 4 } else { 6 },
+                    })
+                }
+            }
             0x0b => C::Animate(play::Animate {
                 id: r.varint()?,
                 action: r.u8()?,

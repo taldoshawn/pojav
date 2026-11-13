@@ -6,6 +6,7 @@
 pub mod actions;
 pub mod bridge;
 pub mod chunk;
+pub mod entity;
 pub mod metadata;
 pub mod play;
 pub mod slot;
