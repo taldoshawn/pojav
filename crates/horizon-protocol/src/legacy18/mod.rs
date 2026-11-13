@@ -4,8 +4,10 @@
 //! feed old registry IDs or packets into the modern game. Login enters Play
 //! directly: there is no Configuration phase or Login Acknowledged packet.
 pub mod actions;
+pub mod bridge;
 pub mod chunk;
 pub mod play;
+pub mod slot;
 
 use crate::{
     Error, Result,

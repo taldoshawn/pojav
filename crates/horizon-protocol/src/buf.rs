@@ -140,6 +140,14 @@ impl<'a> Reader<'a> {
         self.pos += used;
         Ok(tag)
     }
+    /// Legacy packets carry a named NBT root (unlike modern network NBT).
+    pub fn named_nbt(&mut self) -> Result<Tag> {
+        let limits = nbt::Limits { max_bytes: NBT_QUOTA, ..nbt::Limits::default() };
+        let (root, used) = nbt::read_named(&self.data[self.pos..], limits)
+            .map_err(|e| Error::new(format!("legacy NBT: {e}")))?;
+        self.pos += used;
+        Ok(root.tag)
+    }
     pub fn long_array(&mut self) -> Result<Vec<i64>> {
         let n = self.count(self.remaining() / 8)?;
         (0..n).map(|_| self.i64()).collect()
