@@ -1,6 +1,23 @@
 name: Publish verified owner-signed APKs
 on:
   workflow_dispatch:
+    inputs:
+      version:
+        description: Version with committed public signature patches (without v)
+        required: true
+        type: string
+      run_id:
+        description: Successful APK workflow run ID
+        required: true
+        type: string
+      run_number:
+        description: APK workflow run number
+        required: true
+        type: string
+      commit:
+        description: Full source commit of the APK build
+        required: true
+        type: string
 permissions:
   contents: read
 jobs:
@@ -11,30 +28,50 @@ jobs:
     permissions:
       contents: write
       actions: read
+    env:
+      RELEASE_VERSION: ${{ inputs.version }}
+      APK_RUN_ID: ${{ inputs.run_id }}
+      APK_RUN_NUMBER: ${{ inputs.run_number }}
+      APK_COMMIT: ${{ inputs.commit }}
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+      - name: Validate release identifiers
+        shell: bash
+        run: |
+          [[ "$RELEASE_VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-[a-z0-9.]+)?$ ]]
+          [[ "$APK_RUN_ID" =~ ^[0-9]+$ ]]
+          [[ "$APK_RUN_NUMBER" =~ ^[0-9]+$ ]]
+          [[ "$APK_COMMIT" =~ ^[0-9a-f]{40}$ ]]
+          test -f "packaging/releases/$RELEASE_VERSION/BUILD.json"
+          python3 - <<'PYCODE'
+          import json, os
+          from pathlib import Path
+          metadata = json.loads(Path('packaging/releases', os.environ['RELEASE_VERSION'], 'BUILD.json').read_text())
+          assert metadata['version'] == os.environ['RELEASE_VERSION']
+          assert metadata['commit'] == os.environ['APK_COMMIT']
+          PYCODE
       - name: Download the exact original build
         env:
           GH_TOKEN: ${{ github.token }}
-        run: gh run download 43251468836 --repo "$GITHUB_REPOSITORY" --dir artifacts
+        run: gh run download "$APK_RUN_ID" --repo "$GITHUB_REPOSITORY" --dir artifacts
       - name: Restore and verify offline signatures
         run: |
           "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --sdk_root="$ANDROID_HOME" --install 'build-tools;35.0.0' >/dev/null
           mkdir dist
           for abi in arm64-v8a armeabi-v7a x86 x86_64; do
-            apk="dist/Pojav-Rust-0.1.0-$abi.apk"
+            apk="dist/Pojav-Rust-$RELEASE_VERSION-$abi.apk"
             python3 tools/apk_signature_patch.py apply \
-              "artifacts/pojav-rust-2-$abi/Pojav-Rust-2-167ff1a1375b-$abi.apk" \
-              "packaging/releases/0.1.0-alpha.1/$abi.json" "$apk"
+              "artifacts/pojav-rust-$APK_RUN_NUMBER-$abi/Pojav-Rust-$APK_RUN_NUMBER-${APK_COMMIT:0:12}-$abi.apk" \
+              "packaging/releases/$RELEASE_VERSION/$abi.json" "$apk"
             "$ANDROID_HOME/build-tools/35.0.0/apksigner" verify --verbose --print-certs "$apk" > "dist/$abi-signature.txt"
             python3 tools/check_android_release.py "$apk" --public --app-id dev.taldoshawn.pojav \
               --aapt2 "$ANDROID_HOME/build-tools/35.0.0/aapt2" --report "dist/$abi-audit.json"
           done
-          cp packaging/releases/0.1.0-alpha.1/BUILD.json packaging/releases/0.1.0-alpha.1/SHA256SUMS.txt LICENSE THIRD_PARTY_NOTICES.md dist/
+          cp "packaging/releases/$RELEASE_VERSION/BUILD.json" "packaging/releases/$RELEASE_VERSION/SHA256SUMS.txt" LICENSE THIRD_PARTY_NOTICES.md dist/
           (cd dist && sha256sum --check SHA256SUMS.txt)
       - name: Upload only verified public files to the draft release
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          test "$(gh release view v0.1.0-alpha.1 --repo "$GITHUB_REPOSITORY" --json isDraft --jq .isDraft)" = true
-          gh release upload v0.1.0-alpha.1 --repo "$GITHUB_REPOSITORY" dist/*
+          test "$(gh release view "v$RELEASE_VERSION" --repo "$GITHUB_REPOSITORY" --json isDraft --jq .isDraft)" = true
+          gh release upload "v$RELEASE_VERSION" --repo "$GITHUB_REPOSITORY" dist/*
