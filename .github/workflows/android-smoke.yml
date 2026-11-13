@@ -64,9 +64,9 @@ jobs:
       - name: Install and start the actual APK
         uses: reactivecircus/android-emulator-runner@a421e43855164a8197daf9d8d40fe71c6996bb0d
         env:
-          PROBE_GAME: ${{ inputs.probe_game || 'false' }}
+          PROBE_GAME: ${{ github.event_name == 'workflow_run' && 'true' || inputs.probe_game || 'false' }}
           PROBE_WORLD: ${{ inputs.probe_world || 'false' }}
-          TEST_SERVER: ${{ inputs.server || 'none' }}
+          TEST_SERVER: ${{ github.event_name == 'workflow_run' && 'legacy18' || inputs.server || 'none' }}
           PROBE_PROFILES: ${{ inputs.probe_profiles || 'false' }}
         with:
           api-level: 35
