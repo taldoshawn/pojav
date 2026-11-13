@@ -13,6 +13,10 @@ on:
         description: Create and switch two local profiles through the UI
         type: boolean
         default: false
+      probe_pvp:
+        description: Confirm a touch attack against a second local protocol client (requires legacy18 and probe_game)
+        type: boolean
+        default: false
       server:
         description: Optional public server connection probe (no registration or chat)
         type: choice
@@ -61,6 +65,13 @@ jobs:
           echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
           sudo udevadm control --reload-rules
           sudo udevadm trigger --name-match=kvm
+      - name: Build the isolated protocol test peer
+        if: github.event_name == 'workflow_run' || inputs.probe_pvp
+        env:
+          CARGO_BUILD_JOBS: '2'
+          CARGO_INCREMENTAL: '0'
+          CARGO_PROFILE_DEV_DEBUG: '0'
+        run: cargo build -p horizon-protocol --example legacy_server_probe --locked
       - name: Install and start the actual APK
         uses: reactivecircus/android-emulator-runner@a421e43855164a8197daf9d8d40fe71c6996bb0d
         env:
@@ -68,6 +79,7 @@ jobs:
           PROBE_WORLD: ${{ inputs.probe_world || 'false' }}
           TEST_SERVER: ${{ github.event_name == 'workflow_run' && 'legacy18' || inputs.server || 'none' }}
           PROBE_PROFILES: ${{ inputs.probe_profiles || 'false' }}
+          PROBE_PVP: ${{ github.event_name == 'workflow_run' && 'true' || inputs.probe_pvp || 'false' }}
         with:
           api-level: 35
           target: default

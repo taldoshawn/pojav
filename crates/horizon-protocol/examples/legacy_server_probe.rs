@@ -13,6 +13,7 @@ use std::{
     time::{Duration, Instant},
 };
 fn main() -> Result<(), Box<dyn std::error::Error>> {
+    let peer = std::env::args().any(|arg| arg == "--peer");
     let address = std::env::args()
         .nth(1)
         .unwrap_or_else(|| "127.0.0.1:25566".into());
@@ -26,7 +27,11 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         connection,
         "localhost",
         socket.port(),
-        "LegacyProbe",
+        if peer {
+            "LegacyOpponent"
+        } else {
+            "LegacyProbe"
+        },
         Duration::from_secs(10),
         |_| {
             Err(horizon_protocol::Error::new(
@@ -37,6 +42,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     connection
         .reader
         .set_read_timeout(Some(Duration::from_secs(5)))?;
+    if peer {
+        return run_peer(connection);
+    }
     let start = Instant::now();
     let mut pose = Pose::default();
     let (mut joined, mut positioned, mut columns, mut states) = (false, false, 0usize, 0usize);
@@ -130,6 +138,47 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         "{}",
         serde_json::json!({"profile":profile.name,"joined":joined,"positioned":positioned,"columns":columns,"states_checked":states,"position":[pose.x,pose.y,pose.z],"placement_confirmed":true,"break_confirmed":true,"rendering_tested":false})
     );
+    Ok(())
+}
+
+/// An isolated, stationary second client for server-confirmed combat tests.
+/// It acknowledges teleports and keepalives, but never attacks or changes blocks.
+fn run_peer(mut connection: Connection) -> Result<(), Box<dyn std::error::Error>> {
+    use std::io::Write;
+    let start = Instant::now();
+    let mut pose = Pose::default();
+    while start.elapsed() < Duration::from_secs(180) {
+        let (id, bytes) = connection.recv()?;
+        let packet = Packet::decode(id, &bytes)?;
+        match packet {
+            Packet::KeepAlive(id) => connection.send(&legacy18::play::keep_alive(id))?,
+            Packet::Join { .. } => {
+                let mut settings = Writer::new();
+                settings.varint(0x15);
+                settings.string("en_US");
+                settings.i8(3);
+                settings.u8(0);
+                settings.bool(true);
+                settings.u8(127);
+                connection.send(&settings.data)?;
+            }
+            Packet::Position { .. } => {
+                pose = pose.corrected(&packet)?;
+                connection.send(&pose.encode(false)?)?;
+                println!(
+                    "{}",
+                    serde_json::json!({"peer_position": [pose.x, pose.y, pose.z]})
+                );
+                std::io::stdout().flush()?;
+            }
+            Packet::Health { health, .. } => {
+                println!("{}", serde_json::json!({"peer_health": health}));
+                std::io::stdout().flush()?;
+            }
+            Packet::Disconnect(reason) => return Err(format!("peer disconnected: {reason}").into()),
+            _ => {}
+        }
+    }
     Ok(())
 }
 fn validate(column: &Column<'_>) -> Result<usize, Box<dyn std::error::Error>> {

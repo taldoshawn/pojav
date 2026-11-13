@@ -23,6 +23,9 @@ startup_passed = False
 profiles_verified = False
 legacy_verified = False
 legacy_fixture = None
+legacy_peer = None
+peer_log = None
+pvp_attack_verified = False
 installed = False
 try:
     install = adb('install', '-r', '-g', str(apk), check=False)
@@ -153,6 +156,27 @@ try:
                 'basic_interaction_verified':legacy_verified, 'pvp_verified':False}, indent=2))
             if not legacy_verified:
                 raise RuntimeError('Legacy gameplay probe did not confirm move, break and place; inspect screenshots and server evidence')
+            if os.environ.get('PROBE_PVP') == 'true':
+                peer_log = (evidence/'legacy-peer.log').open('wb')
+                legacy_peer = subprocess.Popen(
+                    ['target/debug/examples/legacy_server_probe', '127.0.0.1:25565', '--peer'],
+                    stdout=peer_log, stderr=subprocess.STDOUT)
+                time.sleep(10)
+                if legacy_peer.poll() is not None:
+                    raise RuntimeError('Second protocol client exited; inspect legacy-peer.log')
+                (evidence/'legacy-before-attack.png').write_bytes(adb('exec-out', 'screencap', '-p').stdout)
+                adb('shell', 'input', 'tap', '1434', '691')
+                time.sleep(3)
+                (evidence/'legacy-after-attack.png').write_bytes(adb('exec-out', 'screencap', '-p').stdout)
+                records = [json.loads(line) for line in events_file.read_text().splitlines()]
+                damage = [r for r in records if r.get('event') == 'pvp_damage'
+                          and r.get('attacker') == 'LegacyAndroid' and r.get('damage', 0) > 0]
+                pvp_attack_verified = bool(damage)
+                (evidence/'legacy-pvp.json').write_text(json.dumps({
+                    'attack_verified':pvp_attack_verified, 'damage_events':damage,
+                    'opponent':'isolated protocol test client', 'full_combat_parity':False}, indent=2))
+                if not pvp_attack_verified:
+                    raise RuntimeError('Server did not confirm touch attack damage; inspect PvP evidence')
         if os.environ.get('PROBE_WORLD') == 'true':
             # Coordinates verified against this Pixel 2 profile's screenshots
             # and the title/create-world layout (GUI scale 4).
@@ -176,6 +200,12 @@ try:
 except Exception as error:
     failed = str(error)
 finally:
+    if legacy_peer is not None:
+        if legacy_peer.poll() is None:
+            legacy_peer.terminate()
+        legacy_peer.wait(timeout=10)
+    if peer_log is not None:
+        peer_log.close()
     if legacy_fixture is not None:
         legacy_fixture.close()
     (evidence/'logcat.txt').write_bytes(adb('logcat', '-d', check=False).stdout)
@@ -184,7 +214,8 @@ finally:
         'startup_passed':startup_passed,'failure':failed,'local_profiles_verified':profiles_verified,
         'test':'x86_64 emulator API 35 legacy touch interaction' if legacy_fixture is not None else 'x86_64 emulator API 35 startup and optional UI exploration',
         'legacy_basic_interaction_verified':legacy_verified,'world_or_multiplayer_tested':legacy_verified,'fps_benchmark':False,
-        'pvp_verified':False, 'server_probe':os.environ.get('TEST_SERVER', 'none'),
+        'pvp_verified':False, 'pvp_attack_verified':pvp_attack_verified,
+        'server_probe':os.environ.get('TEST_SERVER', 'none'),
         'public_server_probe':os.environ.get('TEST_SERVER') == 'mush',
         'screenshots_require_manual_gameplay_review':True},indent=2)+'\n')
 if failed:

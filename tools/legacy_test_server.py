@@ -50,6 +50,7 @@ class LegacyServer:
         plugin = self.root/'Plugins/LegacyProbe'
         plugin.mkdir()
         (plugin/'main.lua').write_text('''
+local main_x, main_y, main_z = 0.5, 64, 0.5
 local function record(line)
   local f = io.open("probe-events.jsonl", "a")
   if f then f:write(line .. "\\n"); f:close() end
@@ -61,10 +62,16 @@ function Initialize(Plugin)
   cPluginManager:AddHook(cPluginManager.HOOK_PLAYER_MOVING, OnMove)
   cPluginManager:AddHook(cPluginManager.HOOK_PLAYER_BROKEN_BLOCK, OnBreak)
   cPluginManager:AddHook(cPluginManager.HOOK_PLAYER_PLACED_BLOCK, OnPlace)
+  cPluginManager:AddHook(cPluginManager.HOOK_TAKE_DAMAGE, OnDamage)
   return true
 end
 function OnSpawn(Player)
   record(string.format('{"event":"spawn","name":"%s"}', Player:GetName()))
+  if Player:GetName() == "LegacyOpponent" then
+    Player:SetGameMode(0)
+    Player:TeleportToCoords(main_x, main_y, main_z + 2.0)
+    return false
+  end
   Player:SetYaw(0)
   Player:SetPitch(0)
   Player:GetInventory():SetHotbarSlot(0, cItem(1, 64))
@@ -72,6 +79,9 @@ function OnSpawn(Player)
   return false
 end
 function OnMove(Player, Old, New)
+  if Player:GetName() ~= "LegacyOpponent" then
+    main_x, main_y, main_z = New.x, New.y, New.z
+  end
   if (Old - New):SqrLength() > 0.0001 then
     record(string.format('{"event":"move","x":%.4f,"y":%.4f,"z":%.4f}', New.x, New.y, New.z))
   end
@@ -83,6 +93,14 @@ function OnBreak(Player, X, Y, Z)
 end
 function OnPlace(Player, X, Y, Z)
   record(string.format('{"event":"place","x":%d,"y":%d,"z":%d}', X, Y, Z))
+  return false
+end
+function OnDamage(Receiver, TDI)
+  if Receiver:IsPlayer() and Receiver:GetName() == "LegacyOpponent"
+      and TDI.Attacker and TDI.Attacker:IsPlayer() then
+    record(string.format('{"event":"pvp_damage","attacker":"%s","receiver":"%s","damage":%.4f}',
+      TDI.Attacker:GetName(), Receiver:GetName(), TDI.FinalDamage))
+  end
   return false
 end
 ''')
