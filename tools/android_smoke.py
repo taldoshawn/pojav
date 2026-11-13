@@ -180,10 +180,12 @@ finally:
         legacy_fixture.close()
     (evidence/'logcat.txt').write_bytes(adb('logcat', '-d', check=False).stdout)
     (evidence/'startup.png').write_bytes(adb('exec-out', 'screencap', '-p', check=False).stdout)
-    (evidence/'RESULT.json').write_text(json.dumps({'package':app,'installed':installed,
-        'startup_passed':startup_passed,'failure':failed,'local_profiles_verified':profiles_verified,'test':'x86_64 emulator API 35 startup only',
-        'legacy_basic_interaction_verified':legacy_verified,'world_or_multiplayer_tested':False,'fps_benchmark':False,
-        'public_server_probe':os.environ.get('TEST_SERVER', 'none'),
+    (evidence/'RESULT.json').write_text(json.dumps({'package':app,'apk':apk.name,'installed':installed,
+        'startup_passed':startup_passed,'failure':failed,'local_profiles_verified':profiles_verified,
+        'test':'x86_64 emulator API 35 legacy touch interaction' if legacy_fixture is not None else 'x86_64 emulator API 35 startup and optional UI exploration',
+        'legacy_basic_interaction_verified':legacy_verified,'world_or_multiplayer_tested':legacy_verified,'fps_benchmark':False,
+        'pvp_verified':False, 'server_probe':os.environ.get('TEST_SERVER', 'none'),
+        'public_server_probe':os.environ.get('TEST_SERVER') == 'mush',
         'screenshots_require_manual_gameplay_review':True},indent=2)+'\n')
 if failed:
     raise SystemExit(failed)
