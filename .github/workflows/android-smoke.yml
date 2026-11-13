@@ -16,7 +16,7 @@ on:
       server:
         description: Optional public server connection probe (no registration or chat)
         type: choice
-        options: [none, mush]
+        options: [none, mush, legacy18]
         default: none
       probe_world:
         description: Also explore creating a flat world (requires probe_game)

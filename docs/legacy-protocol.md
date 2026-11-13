@@ -1,9 +1,10 @@
 # Protocol 47 transport work
 
-The game still targets its existing modern protocol. `horizon-protocol::legacy18`
-adds an experimental wire layer for Minecraft 1.8–1.8.9 (protocol 47). It is **not
-connected to the game loop or version-selection UI**, and does not establish
-playable 1.8.9 support. No other historical protocols are implemented by this work.
+The default game still targets the modern protocol. The development backend
+now connects protocol 47 to the game via `--protocol-47`, and Android's version
+chooser selects that connection path. This is not yet a validated playable
+release: APK rendering and interaction tests remain pending. Other historical
+protocols are not implemented.
 
 Implemented and covered by byte fixtures and local TCP peers:
 
@@ -70,3 +71,23 @@ The original checkout's lockfile omitted `socks` and its transitive dependencies
 although the workspace already requested that dependency. Resolving the existing
 manifests adds those entries to `Cargo.lock`, allowing the targeted commands above
 to run with `--locked`. No new dependency was introduced for the legacy module.
+
+## Integration work in progress
+
+The legacy connection uses the real account session callback, fixed dimension
+registries, and a separate outgoing action translator. Chunks enter the streaming
+renderer after old block IDs are upgraded through the existing world data fixers.
+Partial columns retain omitted sections; light and biome colors use legacy data.
+Health, teleports, chat, basic player entities and inventory updates reach the game.
+Unknown packet families and incomplete prediction/transactions remain limitations.
+
+A native protocol probe joined a disposable Cuberite server, received its spawn
+and four columns, and checked 262,144 block states. This proves transport against
+an independent server; it does not prove Android rendering, PvP or server-wide
+compatibility. `tools/legacy_test_server.py` provisions the pinned server fixture
+and records server-side touch-test movement/block events for the Android harness.
+
+Protocol field behavior was compared against Cuberite's `Protocol18x.cpp` at
+[72aa50f710200832f97a0022dc70c5cd531b6aea](https://github.com/cuberite/cuberite/tree/72aa50f710200832f97a0022dc70c5cd531b6aea),
+Apache-2.0. No Cuberite implementation source is incorporated into the game.
+The test server is downloaded to disposable storage, not bundled in the APK.

@@ -64,6 +64,7 @@ pub struct Config {
     pub proxy: Option<String>,
     pub name: String,
     pub server: String,
+    pub legacy18: bool,
     #[serde(skip)]
     pub microsoft_client_id: String,
     pub renderer: RendererMode,
@@ -123,6 +124,7 @@ impl Default for Config {
             proxy: None,
             name: String::new(),
             server: String::new(),
+            legacy18: false,
             microsoft_client_id: String::new(),
             renderer: RendererMode::default(),
             render_scale: crate::display::RenderScale::default(),

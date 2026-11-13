@@ -7,6 +7,7 @@ use crate::catalog::RendererMode;
 use horizon_client::ui_theme::{Face, Ui};
 
 pub(super) enum Kind {
+    GameVersion,
     Aspect,
     DisplayHz,
     CacheBudget,
@@ -42,6 +43,14 @@ impl Launcher {
         };
         let c = &self.catalog.config;
         let (title, help, choices) = match kind {
+            Kind::GameVersion => (
+                "Minecraft version",
+                "1.8.9 multiplayer compatibility is under development. Local worlds currently use 26.3.",
+                vec![
+                    ("26.3".into(), "Current engine".into(), Action::ChooseGameVersion(false), !c.legacy18),
+                    ("1.8.9".into(), "Legacy multiplayer — validation pending".into(), Action::ChooseGameVersion(true), c.legacy18),
+                ],
+            ),
             Kind::Aspect => (
                 "Aspect ratio",
                 "Fits the entire picture without stretching. Touch coordinates follow the picture. Portrait swaps width and height.",

@@ -588,7 +588,7 @@ impl Launcher {
                 self.wardrobe
                     .prepare_game(&self.catalog.config.name, &game_home)?;
             }
-            let extra_arguments = if crate::PUBLIC_BUILD {
+            let mut extra_arguments = if crate::PUBLIC_BUILD {
                 Vec::new()
             } else {
                 match std::fs::read(self.home.join("android-launch.json")) {
@@ -618,6 +618,7 @@ impl Launcher {
             horizon_client::android_runtime::clear_gamepads();
             self.controller_edges = Default::default();
             self.controller_repeat = None;
+            if self.catalog.config.legacy18 { extra_arguments.push("--protocol-47".into()); }
             let request = crate::game_launch::LaunchRequest {
                 resources: self
                     .home

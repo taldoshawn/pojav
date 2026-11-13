@@ -21,6 +21,8 @@ def adb_privilege(root):
 failed = None
 startup_passed = False
 profiles_verified = False
+legacy_verified = False
+legacy_fixture = None
 installed = False
 try:
     install = adb('install', '-r', '-g', str(apk), check=False)
@@ -30,8 +32,12 @@ try:
     installed = True
     server = os.environ.get('TEST_SERVER', 'none')
     if server != 'none':
-        if server != 'mush':
+        if server not in ('mush', 'legacy18'):
             raise ValueError('Unsupported public server probe')
+        if server == 'legacy18':
+            from legacy_test_server import LegacyServer
+            legacy_fixture = LegacyServer(evidence)
+            legacy_fixture.start()
         # Seed only public launcher preferences in this disposable emulator.
         # This does not create a server account, send chat, or alter authentication.
         adb_privilege(True)
@@ -42,8 +48,9 @@ try:
         adb('shell', 'mkdir', '-p', data + '/files')
         adb('shell', 'chown', uid + ':' + uid, data + '/files')
         fixture = Path('launcher-test-profile.json')
-        fixture.write_text(json.dumps({'name': 'PRust' + os.environ.get('GITHUB_RUN_ID', 'Probe')[-8:],
-                                      'server': 'jogar.mush.com.br'}))
+        fixture.write_text(json.dumps({'name': 'LegacyAndroid' if server == 'legacy18' else 'PRust' + os.environ.get('GITHUB_RUN_ID', 'Probe')[-8:],
+                                      'server': '10.0.2.2:25565' if server == 'legacy18' else 'jogar.mush.com.br',
+                                      'legacy18': server == 'legacy18'}))
         adb('push', str(fixture), data + '/files/android-launcher.json')
         adb('shell', 'chown', uid + ':' + uid, data + '/files/android-launcher.json')
         adb('shell', 'chmod', '600', data + '/files/android-launcher.json')
@@ -123,6 +130,29 @@ try:
             (evidence/f'game-{i}.png').write_bytes(adb('exec-out', 'screencap', '-p').stdout)
             if not adb('shell', 'pidof', app, check=False).stdout.strip():
                 raise RuntimeError('App exited during resource/game probe')
+        if legacy_fixture is not None:
+            (evidence/'legacy-before-input.png').write_bytes(adb('exec-out', 'screencap', '-p').stdout)
+            events_file = legacy_fixture.root/'probe-events.jsonl'
+            with events_file.open('a') as log:
+                log.write('{"event":"input_begin"}\n')
+            adb('shell', 'input', 'tap', '1649', '562')  # MCPE use/place
+            time.sleep(3)
+            (evidence/'legacy-after-place.png').write_bytes(adb('exec-out', 'screencap', '-p').stdout)
+            adb('shell', 'input', 'tap', '1434', '691')  # MCPE attack/break
+            time.sleep(3)
+            (evidence/'legacy-after-break.png').write_bytes(adb('exec-out', 'screencap', '-p').stdout)
+            adb('shell', 'input', 'swipe', '233', '820', '233', '650', '1500')
+            time.sleep(5)
+            (evidence/'legacy-after-move.png').write_bytes(adb('exec-out', 'screencap', '-p').stdout)
+            records = [json.loads(line) for line in events_file.read_text().splitlines()]
+            begin = next(i for i, record in enumerate(records) if record['event'] == 'input_begin')
+            observed = {record['event'] for record in records[begin+1:]}
+            legacy_verified = {'move', 'break', 'place'} <= observed
+            (evidence/'legacy-interactions.json').write_text(json.dumps({
+                'server':'Cuberite protocol 47', 'observed_after_touch':sorted(observed),
+                'basic_interaction_verified':legacy_verified, 'pvp_verified':False}, indent=2))
+            if not legacy_verified:
+                raise RuntimeError('Legacy gameplay probe did not confirm move, break and place; inspect screenshots and server evidence')
         if os.environ.get('PROBE_WORLD') == 'true':
             # Coordinates verified against this Pixel 2 profile's screenshots
             # and the title/create-world layout (GUI scale 4).
@@ -146,11 +176,13 @@ try:
 except Exception as error:
     failed = str(error)
 finally:
+    if legacy_fixture is not None:
+        legacy_fixture.close()
     (evidence/'logcat.txt').write_bytes(adb('logcat', '-d', check=False).stdout)
     (evidence/'startup.png').write_bytes(adb('exec-out', 'screencap', '-p', check=False).stdout)
     (evidence/'RESULT.json').write_text(json.dumps({'package':app,'installed':installed,
         'startup_passed':startup_passed,'failure':failed,'local_profiles_verified':profiles_verified,'test':'x86_64 emulator API 35 startup only',
-        'world_or_multiplayer_tested':False,'fps_benchmark':False,
+        'legacy_basic_interaction_verified':legacy_verified,'world_or_multiplayer_tested':False,'fps_benchmark':False,
         'public_server_probe':os.environ.get('TEST_SERVER', 'none'),
         'screenshots_require_manual_gameplay_review':True},indent=2)+'\n')
 if failed:

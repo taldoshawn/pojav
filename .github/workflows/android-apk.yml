@@ -91,6 +91,9 @@ jobs:
           python3 tools/check_public_tree.py
           python3 -m unittest discover -s tests -p 'test_android_release_audit.py'
           cargo test -p horizon-protocol --lib --test legacy18 --locked
+          cargo test -p horizon-world legacy_network_states --lib --locked
+          cargo build -p horizon-protocol --example legacy_server_probe --locked
+          python3 tools/legacy_test_server.py --probe "$CARGO_TARGET_DIR/debug/examples/legacy_server_probe"
           python3 tools/test_android_updater.py
           rustc --edition=2024 --test crates/horizon-client/src/android/local_profiles.rs -o /tmp/pojav-local-profile-tests
           /tmp/pojav-local-profile-tests

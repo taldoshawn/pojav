@@ -383,6 +383,8 @@ pub(super) enum Action {
     ToggleZeroLatencyTouch,
     ToggleFastChunkUpload,
     // Controls & Control Editor actions
+    GameVersion,
+    ChooseGameVersion(bool),
     KeyboardControlPreset,
     OpenControlEditor,
     CloseControlEditor,
@@ -1702,6 +1704,7 @@ impl Launcher {
 
                 // Interactive Active Configuration Chips (Renderer Mode, FPS Mode, Control System)
                 let chip_y = card_y + hero_h - 32.0;
+                let version_tag = if self.catalog.config.legacy18 { "Version: 1.8.9" } else { "Version: 26.3" };
                 let renderer_tag = format!("Renderer: {}", self.catalog.config.renderer.label());
                 let fps_tag = if self.catalog.config.battery_perf_mode {
                     "FPS: 60 Hz Battery".to_owned()
@@ -1717,6 +1720,7 @@ impl Launcher {
                 );
                 let mut chip_x = content_x + 16.0;
                 for (lbl, act, hi, ic) in [
+                    (version_tag, Action::GameVersion, true, Icon::Gamepad),
                     (renderer_tag.as_str(), Action::Renderer, true, Icon::Monitor),
                     (
                         fps_tag.as_str(),
@@ -7736,6 +7740,13 @@ impl Launcher {
                 self.catalog.refresh(&self.home);
             }
             Some(Action::Profile) => self.open_chooser(chooser::Kind::Profile),
+            Some(Action::GameVersion) => self.open_chooser(chooser::Kind::GameVersion),
+            Some(Action::ChooseGameVersion(legacy)) => {
+                self.catalog.config.legacy18 = legacy;
+                self.catalog.config.save(&self.home)?;
+                self.chooser = None;
+                self.catalog.refresh(&self.home);
+            }
             Some(Action::Renderer) => self.open_chooser(chooser::Kind::Renderer),
             Some(Action::RenderScale) => self.open_chooser(chooser::Kind::RenderScale),
             Some(Action::ChooseRenderScale(scale)) => {

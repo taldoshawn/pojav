@@ -260,6 +260,7 @@ mod remote;
 mod remote_camera;
 mod remote_chat;
 mod remote_chunks;
+mod remote_legacy;
 mod remote_mob_data;
 mod remote_mob_particles;
 mod remote_mob_use;
@@ -459,6 +460,7 @@ struct Options {
     window_size: [u32; 2],
     /// Multiplayer: `--server HOST[:PORT]` joins at start; `--name` is the offline player name.
     server: Option<String>,
+    legacy18: bool,
     /// `--name`, `HORIZON_PLAYER_NAME` or the signed-in account's name; else
     /// [`Options::player_name`] uses the kept offline name.
     player_name: Option<String>,
@@ -617,6 +619,7 @@ impl Options {
                 .ok()
                 .and_then(|v| v.parse().ok()),
             server: None,
+            legacy18: false,
             player_name: std::env::var("HORIZON_PLAYER_NAME")
                 .ok()
                 .filter(|n| !n.is_empty()),
@@ -652,6 +655,7 @@ impl Options {
                     println!("{}", launch_api::reply(&horizon_client::crash::version()));
                     return Ok(None);
                 }
+                "--protocol-47" => o.legacy18 = true,
                 "--fullscreen" => o.fullscreen = true,
                 "--session-stdin" => o.session_stdin = true,
                 "--dedicated" => {

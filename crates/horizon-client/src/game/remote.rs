@@ -448,6 +448,7 @@ pub(super) struct Remote {
     /// The item the player's use began with (`LivingEntity.useItem`).
     pub(super) use_item: Option<Arc<str>>,
     pub(super) dimension: DimensionType,
+    pub(super) legacy_blocks: HashMap<u16, u32>,
     /// What chunk packets decode with (the dimension's height and sky, the
     /// biome registry); replaced whenever one of them changes.
     pub(super) chunk_format: Arc<ChunkFormat>,
@@ -829,7 +830,9 @@ impl Game<'_> {
                         root.clone(),
                     ),
                     None => {
-                        let connect = if lan {
+                        let connect = if self.options.legacy18 {
+                            Session::connect_legacy
+                        } else if lan {
                             Session::connect_lan
                         } else {
                             Session::connect
@@ -959,6 +962,7 @@ impl Game<'_> {
             entity_id: 0,
             camera: None,
             use_item: None,
+            legacy_blocks: HashMap::new(),
             dimension: DimensionType::vanilla("minecraft:overworld"),
             chunk_format: Arc::new(ChunkFormat::new(
                 &DimensionType::vanilla("minecraft:overworld"),
@@ -1734,7 +1738,7 @@ impl Game<'_> {
         };
         let mut chunks = Duration::ZERO;
         while let Some(item) = events.pop_front() {
-            let chunk = matches!(item, Received::Chunk(_));
+            let chunk = matches!(item, Received::Chunk(_) | Received::Event(Event::LegacyPacket { id: 0x21 | 0x26, .. }));
             if chunk && bounded && chunks >= chunk_budget {
                 events.push_front(item);
                 break;
@@ -1767,6 +1771,12 @@ impl Game<'_> {
                 }
             };
             match event {
+                Event::LegacyPacket { id, payload } => {
+                    if let Err(error) = self.handle_legacy_packet(id, &payload) {
+                        self.leave_server(Some(format!("1.8.9 packet {id:#x}: {error}")))?;
+                        return Ok(());
+                    }
+                }
                 Event::Status(s) => {
                     if let Some(r) = self.remote.as_mut() {
                         r.status = s;
@@ -2816,7 +2826,7 @@ impl Game<'_> {
             _ => "inventory".into(),
         }
     }
-    fn set_menu_slot(&mut self, container: i32, slot: i32, item: Option<ItemStack>) {
+    pub(super) fn set_menu_slot(&mut self, container: i32, slot: i32, item: Option<ItemStack>) {
         let menu = self.open_menu_name(container);
         if menu == "minecraft:lectern" {
             if slot == 0 {
@@ -2899,7 +2909,7 @@ impl Game<'_> {
         }
     }
 
-    fn handle_packet(&mut self, packet: C) -> Result<()> {
+    pub(super) fn handle_packet(&mut self, packet: C) -> Result<()> {
         match packet {
             // ClientCommonPacketListenerImpl.handlePing runs on the game
             // thread, after all preceding packets (especially teleports).
@@ -6638,7 +6648,7 @@ impl Game<'_> {
         }
     }
     /// Inventory as the server last described it.
-    fn remote_synced(&mut self) {
+    pub(super) fn remote_synced(&mut self) {
         let stacks = self.creative_stacks();
         if let Some(r) = self.remote.as_mut() {
             r.synced = stacks;

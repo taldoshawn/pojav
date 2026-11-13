@@ -6,6 +6,7 @@
 //! Online-mode servers need the Microsoft account the launcher signed in
 //! (crate::auth): the login joins the server through the session service and
 //! encrypts the connection (ClientHandshakePacketListenerImpl.handleHello).
+mod legacy18;
 use crate::auth::AuthSession;
 use horizon_protocol::{
     PROTOCOL_VERSION,
@@ -53,6 +54,7 @@ pub enum Event {
         name: String,
     },
     Packet(Box<play::Clientbound>),
+    LegacyPacket { id: i32, payload: Vec<u8> },
     /// A packet that failed to decode (skipped, like vanilla's skippable packets).
     DecodeError(String),
     /// The server sent us back to configuration (`ClientboundStartConfigurationPacket`):
@@ -95,6 +97,8 @@ pub enum Event {
 }
 
 pub struct Session {
+    legacy: bool,
+    legacy_bridge: Arc<Mutex<horizon_protocol::legacy18::bridge::Outbound>>,
     events: Receiver<Event>,
     writer: Arc<Mutex<Option<ConnWriter>>>,
     /// The connection is in configuration (else in play). Changed only
@@ -120,7 +124,7 @@ impl Session {
         resources: PathBuf,
     ) -> Self {
         Self::start(
-            address, name, auth, info, lang, None, None, resources, false,
+            address, name, auth, info, lang, None, None, resources, false, false,
         )
     }
     /// `ClientHandshakePacketListenerImpl.handleHello`: LAN entries can continue
@@ -134,7 +138,7 @@ impl Session {
         lang: Arc<Language>,
         resources: PathBuf,
     ) -> Self {
-        Self::start(address, name, auth, info, lang, None, None, resources, true)
+        Self::start(address, name, auth, info, lang, None, None, resources, true, false)
     }
     /// `ConnectScreen.startConnecting` for a `transfer`: the cookies the
     /// server stored carry to the new connection (`TransferState`).
@@ -157,6 +161,7 @@ impl Session {
             Some(cookies),
             resources,
             false,
+            false,
         )
     }
     /// Join an integrated server through memory (`Connection.connectToLocalServer`).
@@ -177,8 +182,17 @@ impl Session {
             None,
             resources,
             false,
+            false,
         )
     }
+    pub fn connect_legacy(
+        address: &str, name: &str, auth: Option<Arc<AuthSession>>,
+        info: cfg::ClientInformation, lang: Arc<Language>, resources: PathBuf,
+    ) -> Self {
+        Self::start(address, name, auth, info, lang, None, None, resources, false, true)
+    }
+    pub fn is_legacy(&self) -> bool { self.legacy }
+
     fn start(
         address: &str,
         name: &str,
@@ -189,7 +203,10 @@ impl Session {
         cookies: Option<Cookies>,
         resources: PathBuf,
         lan: bool,
+        legacy: bool,
     ) -> Self {
+        let legacy_bridge = Arc::new(Mutex::new(horizon_protocol::legacy18::bridge::Outbound::default()));
+        let thread_bridge = legacy_bridge.clone();
         let (send, events) = channel();
         let writer = Arc::new(Mutex::new(None));
         let configuring = Arc::new(AtomicBool::new(true));
@@ -205,7 +222,10 @@ impl Session {
         let thread = std::thread::Builder::new()
             .name("horizon-net".into())
             .spawn(move || {
-                let result = run(
+                let result = if legacy {
+                    legacy18::run(&address_owned, &name_owned, auth.as_deref(), &lang, &send,
+                        &thread_writer, &thread_configuring, &thread_counters, &thread_bridge)
+                } else { run(
                     local,
                     &address_owned,
                     &name_owned,
@@ -220,7 +240,7 @@ impl Session {
                     transferred,
                     &resources,
                     lan,
-                );
+                ) };
                 let from_server = result.is_ok();
                 let why = result.unwrap_or_else(|e| e);
                 if let Some(w) = thread_writer.lock().unwrap().take() {
@@ -235,6 +255,8 @@ impl Session {
             .ok();
         let debug = std::env::var_os("HORIZON_NET_DEBUG").is_some();
         Self {
+            legacy,
+            legacy_bridge,
             events,
             writer,
             configuring,
@@ -271,8 +293,15 @@ impl Session {
         if self.configuring.load(Ordering::Relaxed) {
             return;
         }
+        let bytes = if self.legacy {
+            match self.legacy_bridge.lock().unwrap().encode(&packet) {
+                Ok(Some(bytes)) => bytes,
+                Ok(None) => return,
+                Err(error) => { log::warn!("Legacy action not sent: {error}: {packet:?}"); return; }
+            }
+        } else { packet.encode() };
         if let Some(w) = writer.as_mut()
-            && w.send(&packet.encode()).is_err()
+            && w.send(&bytes).is_err()
         {
             w.shutdown();
         }
