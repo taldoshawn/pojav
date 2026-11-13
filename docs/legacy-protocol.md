@@ -49,8 +49,10 @@ is not an APK build or a test on a phone.
 
 ## Remaining before a playable backend
 
-1. Complete missing entity/object packets, effects, resource packs and inventory
-   transaction reconciliation. Blocks, items, biomes, player lists, equipment,
+1. Complete missing entity metadata, resource packs and inventory
+   transaction reconciliation. Object spawns now translate dropped items,
+   arrows, other legacy projectiles and vehicles; potion effect updates also
+   reach the game. These additions still need visual gameplay validation. Blocks, items, biomes, player lists, equipment,
    mob metadata and scoreboards now have translation paths into the game.
 2. Match legacy movement, combat and collision behavior rather than merely
    translating packets. Validate with a reference server and gameplay tests.
@@ -90,3 +92,16 @@ Protocol field behavior was compared against Cuberite's `Protocol18x.cpp` at
 [72aa50f710200832f97a0022dc70c5cd531b6aea](https://github.com/cuberite/cuberite/tree/72aa50f710200832f97a0022dc70c5cd531b6aea),
 Apache-2.0. No Cuberite implementation source is incorporated into the game.
 The test server is downloaded to disposable storage, not bundled in the APK.
+
+## Android regression evidence
+
+The protocol-47 APK from build 9 rendered the Cuberite world and displayed the
+native FPS counter. Server logs confirmed touch movement and block placement.
+The initial combined action check did not confirm breaking: repeated placement
+on the software-rendered emulator displaced the player from the target. The
+harness now resets the fixture between independent placement and break checks.
+This evidence is not yet a passing gameplay result or a phone FPS measurement.
+
+The isolated two-client wire probe also received server-confirmed attack damage.
+The Android harness has a separate touch-attack check against that second client;
+full combat parity is not inferred from a single attack.
