@@ -16,7 +16,7 @@ ARM64 é a arquitetura dos celulares atuais. As variantes ARMv7 e x86 de 32 bits
 
 ## Compatibilidade atual
 
-O backend de jogo existente tem como alvo **26.3, protocolo 777**. A nova camada de rede **1.8–1.8.9, protocolo 47**, ainda é experimental e **não está integrada ao jogo**. Não há suporte universal a versões, servidores ou aparelhos, nem promessa de FPS.
+O backend de jogo existente tem como alvo **26.3, protocolo 777**. A nova camada de rede **1.8–1.8.9, protocolo 47**, está integrada ao jogo nos builds de desenvolvimento, com seletor de versão, mas continua experimental e aguarda validação de gameplay no APK. Não há suporte universal a versões, servidores ou aparelhos, nem promessa de FPS.
 
 O APK x86_64 foi instalado e abriu a interface no emulador Android 15 ([teste](https://github.com/taldoshawn/pojav/actions/runs/43307924129)). Isso não mede FPS em celulares nem comprova multiplayer em servidor real. A preparação do APK e a compatibilidade de jogo são verificações distintas. Consulte [o estado do protocolo legado](docs/legacy-protocol.md) e [a compilação deste fork](docs/pojav-build.md).
 

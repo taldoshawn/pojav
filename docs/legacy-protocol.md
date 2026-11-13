@@ -49,16 +49,14 @@ is not an APK build or a test on a phone.
 
 ## Remaining before a playable backend
 
-1. Translate legacy blocks, items, biomes and entity data into the renderer's
-   resource registries, with explicit behavior for unmapped states.
-2. Implement the remaining play packets and outgoing player actions, inventory
-   transactions, containers, entity tracking, resource packs and block updates.
-3. Connect the backend to the network/game-thread boundary, account session and
-   version selection; preserve modern behavior in its existing backend.
-4. Match legacy movement, combat and collision behavior rather than merely
+1. Complete missing entity/object packets, effects, resource packs and inventory
+   transaction reconciliation. Blocks, items, biomes, player lists, equipment,
+   mob metadata and scoreboards now have translation paths into the game.
+2. Match legacy movement, combat and collision behavior rather than merely
    translating packets. Validate with a reference server and gameplay tests.
-5. Build APKs, test representative GPUs and Android versions, and measure frame
-   time, memory and sustained thermal behavior in actual multiplayer sessions.
+3. Test the integrated APK's rendering and touch controls, then representative
+   GPUs and Android versions. Measure frame time, memory and sustained thermal
+   behavior in actual multiplayer sessions.
 
 No universal Android support or measured FPS improvement is claimed. Android
 version, graphics API, drivers, memory and CPU architecture remain constraints.
@@ -82,7 +80,8 @@ Health, teleports, chat, basic player entities and inventory updates reach the g
 Unknown packet families and incomplete prediction/transactions remain limitations.
 
 A native protocol probe joined a disposable Cuberite server, received its spawn
-and four columns, and checked 262,144 block states. This proves transport against
+and four columns, and checked 262,144 block states. The extended probe also
+received server confirmation of block placement and breaking, and sent movement. This proves transport against
 an independent server; it does not prove Android rendering, PvP or server-wide
 compatibility. `tools/legacy_test_server.py` provisions the pinned server fixture
 and records server-side touch-test movement/block events for the Android harness.

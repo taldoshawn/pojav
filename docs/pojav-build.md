@@ -38,7 +38,8 @@ python3 tools/android_build.py --abi arm64-v8a --public --profile release \
 Troque `arm64-v8a` por `armeabi-v7a`, `x86` ou `x86_64` quando necessário.
 Verifique o arquivo `BUILD.json` e o SHA-256 junto do APK. Compilar e assinar não
 substitui testar a instalação, a primeira inicialização, o multiplayer e o
-desempenho num aparelho. O módulo de protocolo 47 ainda não oferece gameplay.
+desempenho num aparelho. O backend de protocolo 47 está integrado; a validação de gameplay no APK
+ainda está em andamento.
 
 ## Assinar os artifacts com uma chave local permanente
 
