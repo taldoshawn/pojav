@@ -95,13 +95,16 @@ The test server is downloaded to disposable storage, not bundled in the APK.
 
 ## Android regression evidence
 
-The protocol-47 APK from build 9 rendered the Cuberite world and displayed the
-native FPS counter. Server logs confirmed touch movement and block placement.
-The initial combined action check did not confirm breaking: repeated placement
-on the software-rendered emulator displaced the player from the target. The
-harness now resets the fixture between independent placement and break checks.
-This evidence is not yet a passing gameplay result or a phone FPS measurement.
+[Android gameplay run 43497478597](https://github.com/taldoshawn/pojav/actions/runs/43497478597)
+passed with build 9 (`19b0ca5b0500e8d6374ea115f69600be824b7452`). The x86_64 APK
+rendered the Cuberite world, the second player's model/name and the native FPS
+counter. Server logs confirmed touch movement, block placement, block breaking
+and one point of attack damage to the second protocol client. The test resets
+the fixture between independent place/break checks so that repeated placement
+on the software renderer cannot displace the player from the next target.
 
-The isolated two-client wire probe also received server-confirmed attack damage.
-The Android harness has a separate touch-attack check against that second client;
-full combat parity is not inferred from a single attack.
+This confirms basic interaction against an independent protocol-47 server. It
+does not establish full combat parity, public-server compatibility, physical
+Android performance or support for every version. The emulator uses software
+rendering; its displayed FPS is not a phone benchmark. New object/effect support
+was added after this APK and requires its own build and regression run.
