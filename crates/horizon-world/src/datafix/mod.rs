@@ -383,3 +383,40 @@ pub fn update_saved_data(ty: Ty, tag: &mut Tag) {
 
 #[cfg(test)]
 mod tests;
+
+/// Resolve a pre-flattening numeric block state through the same upgrade path
+/// as saved worlds. Protocol 47 supplies `(block_id << 4) | metadata`.
+/// Callers should cache results; upgrades must not run for every rendered block.
+pub fn legacy_block_state(state: u16) -> std::io::Result<crate::chunk::BlockState> {
+    if state > 4095 {
+        return Err(std::io::Error::new(std::io::ErrorKind::InvalidData,
+            "legacy block state is outside the vanilla flattening table"));
+    }
+    let mut tag = block_state_data::get_tag(i32::from(state));
+    update(Ty::BlockState, &mut tag, 1519, CURRENT);
+    crate::chunk::BlockState::from_nbt(&tag)
+}
+
+#[cfg(test)]
+mod legacy_network_states {
+    use super::*;
+    #[test]
+    fn numeric_states_resolve_through_flattening_and_later_renames() {
+        for (state, name) in [(0,"minecraft:air"), (16,"minecraft:stone"),
+            (32,"minecraft:grass_block"), (83,"minecraft:jungle_planks"),
+            (560,"minecraft:white_wool"), (575,"minecraft:black_wool")] {
+            assert_eq!(legacy_block_state(state).unwrap().name, name);
+        }
+        assert!(legacy_block_state(65535).is_err());
+    }
+}
+
+/// Upgrade the legacy biome identifier to the current name.
+pub fn legacy_biome(id: u8) -> &'static str {
+    static NAMES: [std::sync::OnceLock<String>; 256] = [const { std::sync::OnceLock::new() }; 256];
+    NAMES[usize::from(id)].get_or_init(|| {
+        let mut tag = Tag::String(fixes_cliffs::biome_by_id(i32::from(id)).into());
+        update(Ty::Biome, &mut tag, 2730, CURRENT);
+        match tag { Tag::String(name) => name.to_string_lossy(), _ => "minecraft:plains".into() }
+    })
+}

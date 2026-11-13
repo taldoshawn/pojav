@@ -893,7 +893,7 @@ const HEIGHTMAP_TYPES: &[&str] = &[
 ];
 
 /// `ChunkHeightAndBiomeFix.BIOMES_BY_ID`.
-fn biome_by_id(id: i32) -> &'static str {
+pub(super) fn biome_by_id(id: i32) -> &'static str {
     match id {
         0 => "minecraft:ocean",
         1 => "minecraft:plains",
