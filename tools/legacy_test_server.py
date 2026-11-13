@@ -125,6 +125,11 @@ function OnTick()
       return false
     end)
     record('{"event":"fixture_reset"}')
+  elseif command == "show_pickup" then
+    local items = cItems()
+    items:Add(cItem(264, 1))
+    test_world:SpawnItemPickups(items, main_x + 1.5, main_y + 0.5, main_z + 2.0, 0)
+    record('{"event":"pickup_spawned","item":"diamond"}')
   end
   return false
 end

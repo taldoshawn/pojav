@@ -183,6 +183,9 @@ try:
                     'opponent':'isolated protocol test client', 'full_combat_parity':False}, indent=2))
                 if not pvp_attack_verified:
                     raise RuntimeError('Server did not confirm touch attack damage; inspect PvP evidence')
+            (legacy_fixture.root/'probe-command.txt').write_text('show_pickup')
+            time.sleep(5)
+            (evidence/'legacy-dropped-item.png').write_bytes(adb('exec-out', 'screencap', '-p').stdout)
         if os.environ.get('PROBE_WORLD') == 'true':
             # Coordinates verified against this Pixel 2 profile's screenshots
             # and the title/create-world layout (GUI scale 4).
