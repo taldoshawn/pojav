@@ -138,6 +138,29 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         "{}",
         serde_json::json!({"profile":profile.name,"joined":joined,"positioned":positioned,"columns":columns,"states_checked":states,"position":[pose.x,pose.y,pose.z],"placement_confirmed":true,"break_confirmed":true,"rendering_tested":false})
     );
+    if std::env::args().any(|arg| arg == "--attack-peer") {
+        use std::io::Write;
+        std::io::stdout().flush()?;
+        let deadline = Instant::now() + Duration::from_secs(20);
+        while Instant::now() < deadline {
+            let (id, bytes) = connection.recv()?;
+            match Packet::decode(id, &bytes)? {
+                Packet::KeepAlive(id) => connection.send(&legacy18::play::keep_alive(id))?,
+                Packet::Unknown { id: 0x0c, payload } => {
+                    let mut r = horizon_protocol::buf::Reader::new(payload);
+                    let entity = r.varint()?;
+                    let _server_uuid = r.uuid()?;
+                    // This isolated two-client fixture has exactly one other
+                    // player. Its server-selected offline UUID is not Mojang's.
+                    connection.send(&legacy18::actions::interact_entity(entity, true)?)?;
+                    std::thread::sleep(Duration::from_millis(300));
+                    return Ok(());
+                }
+                _ => {}
+            }
+        }
+        return Err("second client did not spawn for attack probe".into());
+    }
     Ok(())
 }
 

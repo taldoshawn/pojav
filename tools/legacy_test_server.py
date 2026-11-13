@@ -51,6 +51,7 @@ class LegacyServer:
         plugin.mkdir()
         (plugin/'main.lua').write_text('''
 local main_x, main_y, main_z = 0.5, 64, 0.5
+local test_world = nil
 local function record(line)
   local f = io.open("probe-events.jsonl", "a")
   if f then f:write(line .. "\\n"); f:close() end
@@ -63,6 +64,7 @@ function Initialize(Plugin)
   cPluginManager:AddHook(cPluginManager.HOOK_PLAYER_BROKEN_BLOCK, OnBreak)
   cPluginManager:AddHook(cPluginManager.HOOK_PLAYER_PLACED_BLOCK, OnPlace)
   cPluginManager:AddHook(cPluginManager.HOOK_TAKE_DAMAGE, OnDamage)
+  cPluginManager:AddHook(cPluginManager.HOOK_TICK, OnTick)
   return true
 end
 function OnSpawn(Player)
@@ -74,6 +76,7 @@ function OnSpawn(Player)
   end
   Player:SetYaw(0)
   Player:SetPitch(0)
+  test_world = Player:GetWorld()
   Player:GetInventory():SetHotbarSlot(0, cItem(1, 64))
   Player:GetWorld():SetBlock(0, 65, 3, 1, 0)
   return false
@@ -100,6 +103,28 @@ function OnDamage(Receiver, TDI)
       and TDI.Attacker and TDI.Attacker:IsPlayer() then
     record(string.format('{"event":"pvp_damage","attacker":"%s","receiver":"%s","damage":%.4f}',
       TDI.Attacker:GetName(), Receiver:GetName(), TDI.FinalDamage))
+  end
+  return false
+end
+function OnTick()
+  if not test_world then return false end
+  local f = io.open("probe-command.txt", "r")
+  if not f then return false end
+  local command = f:read("*a"); f:close()
+  os.remove("probe-command.txt")
+  if command == "reset_blocks" then
+    for x = -1, 1 do
+      for z = 0, 5 do test_world:SetBlock(x, 65, z, 0, 0) end
+    end
+    test_world:SetBlock(0, 65, 3, 1, 0)
+    test_world:ForEachPlayer(function(Player)
+      if Player:GetName() ~= "LegacyOpponent" then
+        Player:SetYaw(0); Player:SetPitch(0)
+        Player:TeleportToCoords(0.5, 64, 0.5)
+      end
+      return false
+    end)
+    record('{"event":"fixture_reset"}')
   end
   return false
 end

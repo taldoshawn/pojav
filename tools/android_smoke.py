@@ -141,6 +141,12 @@ try:
             adb('shell', 'input', 'tap', '1649', '562')  # MCPE use/place
             time.sleep(3)
             (evidence/'legacy-after-place.png').write_bytes(adb('exec-out', 'screencap', '-p').stdout)
+            # Software rendering can keep a tap held across several simulation
+            # ticks, placing a row that pushes the player away from the target.
+            # Reset the fixture between independent place and break assertions.
+            (legacy_fixture.root/'probe-command.txt').write_text('reset_blocks')
+            time.sleep(5)
+            (evidence/'legacy-before-break.png').write_bytes(adb('exec-out', 'screencap', '-p').stdout)
             adb('shell', 'input', 'tap', '1434', '691')  # MCPE attack/break
             time.sleep(3)
             (evidence/'legacy-after-break.png').write_bytes(adb('exec-out', 'screencap', '-p').stdout)
