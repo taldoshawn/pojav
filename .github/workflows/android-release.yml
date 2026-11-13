@@ -68,6 +68,9 @@ jobs:
               --aapt2 "$ANDROID_HOME/build-tools/35.0.0/aapt2" --report "dist/$abi-audit.json"
           done
           cp "packaging/releases/$RELEASE_VERSION/BUILD.json" "packaging/releases/$RELEASE_VERSION/SHA256SUMS.txt" LICENSE THIRD_PARTY_NOTICES.md dist/
+          if test -f "packaging/releases/$RELEASE_VERSION/VALIDATION.json"; then
+            cp "packaging/releases/$RELEASE_VERSION/VALIDATION.json" dist/
+          fi
           (cd dist && sha256sum --check SHA256SUMS.txt)
       - name: Upload only verified public files to the draft release
         env:
