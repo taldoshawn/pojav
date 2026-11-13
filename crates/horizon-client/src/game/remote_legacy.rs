@@ -112,6 +112,12 @@ impl Game<'_> {
             }
         }
         self.streaming.insert_remote(&mut self.world, chunk);
+        // Protocol 47 never sends the modern LEVEL_CHUNKS_LOAD_START event.
+        // A decoded column starts that wait; the normal load tracker still
+        // requires the player's own lit column before closing the screen.
+        if let Some(remote) = self.remote.as_mut() {
+            remote.level_load.loading_packets_received();
+        }
         Ok(())
     }
 
