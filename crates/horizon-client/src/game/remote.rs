@@ -448,7 +448,7 @@ pub(super) struct Remote {
     /// The item the player's use began with (`LivingEntity.useItem`).
     pub(super) use_item: Option<Arc<str>>,
     pub(super) dimension: DimensionType,
-    pub(super) legacy_blocks: HashMap<u16, u32>,
+    pub(super) legacy_blocks: Vec<Option<u32>>,
     /// What chunk packets decode with (the dimension's height and sky, the
     /// biome registry); replaced whenever one of them changes.
     pub(super) chunk_format: Arc<ChunkFormat>,
@@ -962,7 +962,7 @@ impl Game<'_> {
             entity_id: 0,
             camera: None,
             use_item: None,
-            legacy_blocks: HashMap::new(),
+            legacy_blocks: vec![None; 4096],
             dimension: DimensionType::vanilla("minecraft:overworld"),
             chunk_format: Arc::new(ChunkFormat::new(
                 &DimensionType::vanilla("minecraft:overworld"),
@@ -1268,7 +1268,7 @@ impl Game<'_> {
     /// A stack to the server (`SetCreativeModeSlot`): the same component
     /// patch a Horizon server sends its clients, with the registries' ids, so
     /// the server's echo doesn't hand back a bare item.
-    fn to_network(&self, s: &Option<ItemStack>) -> Option<Stack> {
+    pub(super) fn to_network(&self, s: &Option<ItemStack>) -> Option<Stack> {
         let r = self.remote.as_ref()?;
         // A stack as the server sent it, only its count changed: its own
         // components go back, as a vanilla client keeps them.
@@ -1738,7 +1738,14 @@ impl Game<'_> {
         };
         let mut chunks = Duration::ZERO;
         while let Some(item) = events.pop_front() {
-            let chunk = matches!(item, Received::Chunk(_) | Received::Event(Event::LegacyPacket { id: 0x21 | 0x26, .. }));
+            let chunk = matches!(
+                item,
+                Received::Chunk(_)
+                    | Received::Event(Event::LegacyPacket {
+                        id: 0x21 | 0x26,
+                        ..
+                    })
+            );
             if chunk && bounded && chunks >= chunk_budget {
                 events.push_front(item);
                 break;
@@ -2335,6 +2342,15 @@ impl Game<'_> {
     /// predicted state until the server acknowledges the action; the server's state is
     /// remembered for then.
     fn server_block(&mut self, pos: [i32; 3], state: i32) {
+        // Protocol 47 has no sequence acknowledgement. Its block updates are
+        // authoritative immediately, including corrections of rejected actions.
+        if self.remote.as_ref().is_some_and(|r| r.session.is_legacy()) {
+            if let Some(r) = self.remote.as_mut() {
+                r.predictions.remove(&pos);
+            }
+            self.set_block(pos, state);
+            return;
+        }
         if let Some((_, known)) = self
             .remote
             .as_mut()

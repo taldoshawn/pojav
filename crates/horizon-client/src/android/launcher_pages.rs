@@ -7783,6 +7783,7 @@ impl Launcher {
                         .join(format!("profile-{profile}"))
                 })?;
                 self.catalog.config.profile = profile;
+                super::ensure_fps_counter(&self.catalog.config.game_home(&self.home))?;
                 self.catalog.config.save(&self.home)?;
                 self.catalog.refresh(&self.home);
                 self.chooser = None;

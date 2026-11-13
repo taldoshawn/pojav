@@ -20,7 +20,7 @@ pub(super) fn run(
     let (connection, host, port) =
         connect_tcp(&host, port, false, READ_TIMEOUT).map_err(Reason::plain)?;
     *counters.lock().unwrap() = Some(connection.reader.counters.clone());
-    let (connection, profile) =
+    let (mut connection, profile) =
         legacy18::login(connection, &host, port, name, READ_TIMEOUT, |hash| {
             let account = auth.ok_or_else(|| {
                 horizon_protocol::Error::new("This server requires a signed-in Minecraft account")
@@ -32,6 +32,13 @@ pub(super) fn run(
                 })
             })
         })
+        .map_err(|e| Reason::plain(e.to_string()))?;
+    let mut brand = horizon_protocol::buf::Writer::new();
+    brand.varint(0x17);
+    brand.string("MC|Brand");
+    brand.string("PojavRust");
+    connection
+        .send(&brand.data)
         .map_err(|e| Reason::plain(e.to_string()))?;
     let (mut reader, outgoing) = connection.split();
     *writer.lock().unwrap() = Some(outgoing);

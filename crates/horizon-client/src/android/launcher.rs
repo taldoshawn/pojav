@@ -134,6 +134,10 @@ impl Launcher {
             }
         });
         let mut catalog = Catalog::new(&home);
+        if let Err(error) = ensure_fps_counter(&catalog.config.game_home(&home)) {
+            log::warn!("Could not initialize FPS counter: {error}");
+        }
+
         if crate::diagnostics::previous_unclean(&home) {
             catalog.status = crate::diagnostics::summary(&home);
         }
@@ -618,7 +622,9 @@ impl Launcher {
             horizon_client::android_runtime::clear_gamepads();
             self.controller_edges = Default::default();
             self.controller_repeat = None;
-            if self.catalog.config.legacy18 { extra_arguments.push("--protocol-47".into()); }
+            if self.catalog.config.legacy18 {
+                extra_arguments.push("--protocol-47".into());
+            }
             let request = crate::game_launch::LaunchRequest {
                 resources: self
                     .home
@@ -1097,4 +1103,31 @@ impl Launcher {
         }
         Ok(())
     }
+}
+
+/// New profiles show the requested native FPS counter. Explicit off preferences
+/// and an existing disabled mod are preserved across updates and profile changes.
+pub(crate) fn ensure_fps_counter(home: &std::path::Path) -> Result<()> {
+    if crate::fps_hud::Preferences::directory(home)
+        .join("enabled")
+        .is_file()
+    {
+        return Ok(());
+    }
+    let mut mods = horizon_client::mod_list::ModList::load(home);
+    let enabled = !mods.disabled.contains("fps_overlay");
+    if enabled {
+        horizon_client::jar_transpiler::install_builtin_horizon_mod("fps_overlay", home)?;
+        mods.enabled.insert("fps_overlay".into());
+        std::fs::create_dir_all(home)?;
+        std::fs::write(home.join("horizon-mods.txt"), mods.serialize())?;
+        horizon_client::mod_list::sync_live_state(&mods.enabled, &mods.disabled);
+    }
+    crate::fps_hud::Preferences {
+        enabled,
+        corner: 0,
+        lows: false,
+    }
+    .save(home)?;
+    Ok(())
 }

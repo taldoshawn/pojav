@@ -41,8 +41,23 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let mut pose = Pose::default();
     let (mut joined, mut positioned, mut columns, mut states) = (false, false, 0usize, 0usize);
     let mut sky = true;
+    let mut bridge = legacy18::bridge::Outbound::default();
+    let place = horizon_protocol::packets::play::Serverbound::UseItemOn(
+        horizon_protocol::packets::play::UseItemOn {
+            hand: 0,
+            pos: [0, 65, 3],
+            face: 2,
+            cursor: [0.5, 0.5, 0.],
+            inside: false,
+            world_border: false,
+            sequence: 0,
+        },
+    );
     while start.elapsed() < Duration::from_secs(20) {
         let (id, bytes) = connection.recv()?;
+        if let Some(reply) = bridge.observe(id, &bytes)? {
+            connection.send(&reply)?;
+        }
         let p = Packet::decode(id, &bytes)?;
         match p {
             Packet::KeepAlive(id) => connection.send(&legacy18::play::keep_alive(id))?,
@@ -82,15 +97,38 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             _ => {}
         }
         if joined && positioned && columns >= 4 {
-            break;
+            let encoded = bridge.encode(&place)?.ok_or("placement not encoded")?;
+            let held = legacy18::slot::Slot::read(&mut horizon_protocol::buf::Reader::new(
+                &encoded[10..],
+            ))?;
+            if held.is_some() {
+                break;
+            }
         }
     }
     if !joined || !positioned || columns < 4 || states == 0 {
         return Err("missing spawn/chunk evidence".into());
     }
+    connection.send(&bridge.encode(&place)?.ok_or("placement not encoded")?)?;
+    await_block(&mut connection, &mut bridge, [0, 65, 2], 16)?;
+    connection.send(&legacy18::actions::digging(
+        legacy18::actions::Digging::Start,
+        0,
+        65,
+        2,
+        2,
+    )?)?;
+    connection.send(&legacy18::actions::swing_arm())?;
+    await_block(&mut connection, &mut bridge, [0, 65, 2], 0)?;
+    let moved = Pose {
+        x: pose.x + 1.0,
+        ..pose
+    };
+    connection.send(&moved.encode(true)?)?;
+    std::thread::sleep(Duration::from_millis(300));
     println!(
         "{}",
-        serde_json::json!({"profile":profile.name,"joined":joined,"positioned":positioned,"columns":columns,"states_checked":states,"position":[pose.x,pose.y,pose.z],"rendering_tested":false})
+        serde_json::json!({"profile":profile.name,"joined":joined,"positioned":positioned,"columns":columns,"states_checked":states,"position":[pose.x,pose.y,pose.z],"placement_confirmed":true,"break_confirmed":true,"rendering_tested":false})
     );
     Ok(())
 }
@@ -113,4 +151,52 @@ fn validate(column: &Column<'_>) -> Result<usize, Box<dyn std::error::Error>> {
         }
     }
     Ok(checked)
+}
+
+fn await_block(
+    connection: &mut Connection,
+    bridge: &mut legacy18::bridge::Outbound,
+    target: [i32; 3],
+    expected: u16,
+) -> Result<(), Box<dyn std::error::Error>> {
+    use horizon_protocol::buf::Reader;
+    let start = Instant::now();
+    for _ in 0..4096 {
+        if start.elapsed() > Duration::from_secs(10) {
+            break;
+        }
+        let (id, bytes) = connection.recv()?;
+        if let Some(reply) = bridge.observe(id, &bytes)? {
+            connection.send(&reply)?;
+        }
+        match Packet::decode(id, &bytes)? {
+            Packet::KeepAlive(id) => connection.send(&legacy18::play::keep_alive(id))?,
+            Packet::BlockChange { x, y, z, state }
+                if [x, i32::from(y), z] == target && state == expected =>
+            {
+                return Ok(());
+            }
+            Packet::Unknown { id: 0x22, payload } => {
+                let mut r = Reader::new(payload);
+                let x = r.i32()? * 16;
+                let z = r.i32()? * 16;
+                let count = r.count(65536)?;
+                for _ in 0..count {
+                    let position = r.u16()?;
+                    let state = r.varint()?;
+                    let pos = [
+                        x + i32::from(position >> 12),
+                        i32::from(position & 255),
+                        z + i32::from((position >> 8) & 15),
+                    ];
+                    if pos == target && state == i32::from(expected) {
+                        return Ok(());
+                    }
+                }
+            }
+            Packet::Disconnect(reason) => return Err(reason.into()),
+            _ => {}
+        }
+    }
+    Err(format!("server did not confirm block {target:?} as {expected}").into())
 }
