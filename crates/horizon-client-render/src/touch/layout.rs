@@ -906,7 +906,7 @@ impl Settings {
         } else {
             32.0
         };
-        self.custom_buttons.truncate(32);
+        self.custom_buttons.truncate(256);
         for button in &mut self.custom_buttons {
             if button.key.is_empty() {
                 button.key = "key.keyboard.unknown".into();
@@ -914,13 +914,7 @@ impl Settings {
         }
         self.custom_buttons
             .retain(|b| super::CustomButton::valid_token(&b.key) || !b.active_tokens().is_empty());
-        let is_mcpe = self.control_style == ControlStyle::Mcpe;
         for button in &mut self.custom_buttons {
-            if is_mcpe {
-                // Enforce strict single-binding exclusivity in MCPE mode (Keyboard OR Mouse)
-                button.second_key.clear();
-                button.third_key.clear();
-            }
             for p in &mut button.layouts {
                 p.sanitize();
             }
@@ -1727,6 +1721,8 @@ impl Settings {
                 fourth_key: String::new(),
                 custom_label: label.into(),
                 always_visible: in_menu,
+                drawer_id: None,
+                parent_drawer: None,
                 layouts: [p; 3],
             }
         };

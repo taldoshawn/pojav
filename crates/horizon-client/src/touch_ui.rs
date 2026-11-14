@@ -4171,26 +4171,15 @@ fn push_undo_snapshot(ed: &mut crate::touch::Editor, current: &crate::touch::Set
 }
 
 fn duplicate_selected_editor_button(ed: &mut crate::touch::Editor, tc: &mut crate::touch::TouchControls) {
-    if tc.settings.custom_buttons.len() >= 32 {
-        ed.status_msg = Some("Maximum of 32 custom buttons reached.".into());
+    if tc.settings.custom_buttons.len() >= 256 {
+        ed.status_msg = Some("Máximo de 256 botões atingido.".into());
         return;
     }
     if let Some(idx) = ed.selected_custom {
-        if let Some(src) = tc.settings.custom_buttons.get(idx).cloned() {
-            push_undo_snapshot(ed, &tc.settings);
-            let mut copy = src;
-            for m in 0..3 {
-                copy.layouts[m].center[0] = (copy.layouts[m].center[0] + 0.04).clamp(0.0, 0.90);
-                copy.layouts[m].center[1] = (copy.layouts[m].center[1] + 0.04).clamp(0.0, 0.90);
-            }
-            let new_idx = tc.settings.custom_buttons.len();
-            let lbl = copy.label();
-            tc.settings.custom_buttons.push(copy);
-            ed.selected_custom = Some(new_idx);
-            ed.selected = None;
-            let _ = tc.settings.save();
-            ed.status_msg = Some(format!("Copied button '{lbl}'."));
-        }
+        push_undo_snapshot(ed, &tc.settings);
+        ed.selected_custom = tc.settings.clone_custom_button(idx);
+        ed.selected = None;
+        let _ = tc.settings.save();
     } else if let Some(ctrl) = ed.selected {
         if ctrl != crate::touch::Control::Move {
             push_undo_snapshot(ed, &tc.settings);
@@ -4995,6 +4984,12 @@ pub fn draw_hud_editor(
         ui.rounded(back_r[0], back_r[1], back_r[2], back_r[3], 10.0, bg_hi);
         ui.border(back_r[0], back_r[1], back_r[2], back_r[3], 10.0, danger_c);
         ui.centered_fit(Face::SemiBold, 11.5, back_r, danger_c, "Back");
+        ui.finish();
+        return;
+    }
+
+    if ed.props_open && ed.selected_custom.is_some() && let PickerStep::Keyboard { event_slot } = ed.picker_step {
+        pojav_editor::draw_key_list(tc, ed, &mut ui, event_slot);
         ui.finish();
         return;
     }
@@ -6961,6 +6956,11 @@ pub fn touch_hud_editor(
     };
     clamp_editor_custom_selection(&mut ed, &tc.settings);
 
+    if ed.props_open && ed.selected_custom.is_some() && let PickerStep::Keyboard { event_slot } = ed.picker_step {
+        pojav_editor::touch_key_list(tc, &mut ed, id, p, [w, h], started, ended, event_slot);
+        tc.editor = Some(ed);
+        return false;
+    }
     if ed.props_open && ed.selected_custom.is_some() && ed.picker_step == PickerStep::None
         && !ed.back_confirm_open && !ed.save_dialog_open && !ed.duplicate_name_confirm_open
     {
@@ -7558,7 +7558,7 @@ pub fn touch_hud_editor(
                     );
                 } else if let Some(idx) = ed.selected_custom {
                     if idx < tc.settings.custom_buttons.len() {
-                        tc.settings.custom_buttons.remove(idx);
+                        tc.settings.remove_custom_button(idx);
                     }
                     ed.selected_custom = None;
                     ed.selected = tc.visible(Control::Move).then_some(Control::Move);
@@ -8204,7 +8204,7 @@ pub fn touch_hud_editor(
                                 _ => {
                                     if let Some(idx) = ed.selected_custom {
                                         if idx < tc.settings.custom_buttons.len() {
-                                            tc.settings.custom_buttons.remove(idx);
+                                            tc.settings.remove_custom_button(idx);
                                         }
                                         ed.selected_custom = None;
                                         ed.selected = Some(Control::Move);

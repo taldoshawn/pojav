@@ -30,6 +30,7 @@ pub fn set_current_hud_opacity_scale(scale: f32) {
 
 pub mod custom;
 pub mod editor;
+pub mod drawer;
 pub mod property_input;
 pub use custom::CustomButton;
 pub use editor::{Editor, EditorDragKind, PickerStep};
@@ -208,6 +209,7 @@ pub struct TouchControls {
     custom_swipe_btn: BTreeMap<u64, usize>,
     builtin_swipe_ctrl: BTreeMap<u64, Control>,
     latched_custom: BTreeSet<String>,
+    open_drawers: BTreeSet<u64>,
     latched_controls: u16,
     custom_events: Vec<(String, bool)>,
     pending: PadState,
@@ -257,6 +259,7 @@ impl Default for TouchControls {
             custom_swipe_btn: BTreeMap::new(),
             builtin_swipe_ctrl: BTreeMap::new(),
             latched_custom: BTreeSet::new(),
+            open_drawers: BTreeSet::new(),
             latched_controls: 0,
             custom_events: Vec::new(),
             pending: PadState::default(),

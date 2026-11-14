@@ -77,3 +77,22 @@ Selecionar 1.8.9 habilita exclusivamente o multiplayer de protocolo 47. O menu
 mostra essa seleção e desabilita o acesso aos mundos locais 26.3. Isso não
 implementa singleplayer 1.8.9 nem substitui o motor moderno por uma implementação
 integral da versão antiga.
+
+## Gavetas e lista de teclas
+
+O menu da engrenagem inclui **Adicionar botão gaveta**. Nas propriedades de
+uma gaveta, **Adicionar botão à gaveta** cria um botão filho editável. Durante
+o jogo, tocar na gaveta mostra ou oculta seus filhos; ao fechar, as entradas
+mantidas pelos filhos são liberadas sem interromper outras teclas seguradas.
+Clonar uma gaveta clona o grupo com identificador independente. Excluir a
+gaveta exclui seus filhos. Os grupos são persistidos no preset JSON.
+
+A atribuição dos botões usa uma lista rolável de teclas e ações com seleção
+indicada, em vez do teclado gráfico central. Há suporte a quatro atribuições
+por botão em ambos os sistemas de controles e até 256 botões. Os tamanhos,
+cores e formatos continuam sujeitos às opções oferecidas pelo cliente Rust.
+Isso ainda não comprova equivalência visual completa com o PojavLauncher.
+
+Consulte [Pastas de conteúdo](android-content-folders.md) para os locais de
+mods, texturas, shaders e presets, incluindo a pasta escolhida fora de
+`Android/data`.

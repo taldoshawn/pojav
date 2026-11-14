@@ -49,6 +49,8 @@ pub struct Editor {
     pub canvas_origin: Option<[f32; 2]>,
     /// Scroll and text entry state for the Pojav button side panel.
     pub side_scroll: f32,
+    pub key_list_scroll: f32,
+    pub key_list_drag: Option<(u64, f32, f32, bool)>,
     pub side_drag: Option<(u64, f32, f32, bool)>,
     pub numeric_property: Option<usize>,
     pub property_viewport: [f32; 2],
@@ -126,6 +128,8 @@ impl TouchControls {
             classic_context: false,
             canvas_origin: None,
             side_scroll: 0.0,
+            key_list_scroll: 0.0,
+            key_list_drag: None,
             side_drag: None,
             numeric_property: None,
             property_viewport: [1.0, 1.0],

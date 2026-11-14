@@ -3,7 +3,7 @@ use crate::touch::{Editor, PickerStep, Placement, TouchControls};
 use crate::ui_theme::{Face, Ui};
 
 const ROW: f32 = 48.0;
-const ROWS: usize = 20;
+const ROWS: usize = 22;
 fn geometry(w: f32, h: f32, center: f32) -> [f32; 4] {
     let width = (w * 0.42).clamp(220.0, 340.0).min(w);
     [if center < 0.5 { w - width } else { 0.0 }, 0.0, width, h]
@@ -79,8 +79,13 @@ pub(super) fn draw(tc: &TouchControls, ed: &Editor, ui: &mut Ui) {
         "Mostrar no jogo",
         "Mostrar nos menus",
         "Excluir botão",
+        "Clonar botão",
+        "Adicionar botão à gaveta",
     ];
     for (row, label) in labels.iter().enumerate() {
+        if row == 21 && button.drawer_id.is_none() {
+            continue;
+        }
         let y = top + row as f32 * ROW - ed.side_scroll;
         if y + ROW < top || y > h {
             continue;
@@ -114,7 +119,12 @@ pub(super) fn draw(tc: &TouchControls, ed: &Editor, ui: &mut Ui) {
             ][row - 14];
             if on { "☑".into() } else { "☐".into() }
         } else {
-            "Excluir".into()
+            match row {
+                19 => "Excluir",
+                20 => "Clonar",
+                _ => "Adicionar",
+            }
+            .into()
         };
         ui.text(
             Face::Regular,
@@ -208,13 +218,21 @@ pub(super) fn touch(
     } else if (5..=8).contains(&row) {
         ed.editing_button_label = false;
         ed.numeric_property = None;
-        ed.picker_step = PickerStep::AskInputType {
+        ed.key_list_scroll = 0.0;
+        ed.picker_step = PickerStep::Keyboard {
             event_slot: row - 5,
         };
     } else if row == 19 {
-        tc.settings.custom_buttons.remove(index);
+        tc.settings.remove_custom_button(index);
         ed.selected_custom = None;
         ed.props_open = false;
+    } else if row == 20 {
+        ed.selected_custom = tc.settings.clone_custom_button(index);
+    } else if row == 21 {
+        if let Some(child) = tc.settings.add_drawer_child(index) {
+            ed.selected_custom = Some(child);
+            ed.side_scroll = 0.0;
+        }
     } else {
         for p in &mut tc.settings.custom_buttons[index].layouts {
             match row {
@@ -235,6 +253,7 @@ pub(super) fn touch(
 
 const CONTEXT: &[&str] = &[
     "Adicionar botão",
+    "Adicionar botão gaveta",
     "Adicionar analógico",
     "Carregar",
     "Salvar",
@@ -292,13 +311,19 @@ pub(super) fn touch_context(
             ed.props_open = true;
         }
         1 => {
+            ed.selected_custom = Some(tc.settings.add_drawer());
+            ed.selected = None;
+            ed.side_scroll = 0.0;
+            ed.props_open = true;
+        }
+        2 => {
             tc.settings.button_visibility[crate::touch::Control::Move as usize] = 1;
             ed.selected_custom = None;
             ed.selected = Some(crate::touch::Control::Move);
             ed.props_open = true;
         }
-        2 => ed.menu_open = true,
-        3 => {
+        3 => ed.menu_open = true,
+        4 => {
             ed.save_dialog_open = true;
             ed.save_name_input = if tc.settings.is_default_preset() {
                 "Meu HUD".into()
@@ -307,7 +332,7 @@ pub(super) fn touch_context(
             };
             ed.save_desc_input = tc.settings.preset_description.clone();
         }
-        4 => {
+        5 => {
             let original = &tc.settings;
             let mut preset = crate::touch::Settings::default_pojav();
             preset.preset_id = original.preset_id.clone();
@@ -318,7 +343,7 @@ pub(super) fn touch_context(
             ed.selected_custom = None;
             ed.selected = None;
         }
-        5 => {
+        6 => {
             let result = serde_json::to_vec_pretty(&tc.settings)
                 .map_err(|e| e.to_string())
                 .and_then(|bytes| {
@@ -330,5 +355,120 @@ pub(super) fn touch_context(
             });
         }
         _ => {}
+    }
+}
+
+fn key_options() -> Vec<(&'static str, &'static str)> {
+    let mut options = vec![
+        ("UNKNOWN", "key.keyboard.unknown"),
+        ("DPAD_LEFT", "key.keyboard.left"),
+        ("DPAD_RIGHT", "key.keyboard.right"),
+        ("DPAD_UP", "key.keyboard.up"),
+        ("DPAD_DOWN", "key.keyboard.down"),
+    ];
+    for row in super::KB_ROWS {
+        for (name, token, _) in *row {
+            if !options.iter().any(|(_, key)| key == token) {
+                options.push((*name, *token));
+            }
+        }
+    }
+    options.extend_from_slice(super::MOUSE_AND_ACTION_ITEMS);
+    options
+}
+fn key_geometry(tc: &TouchControls, ed: &Editor, w: f32, h: f32) -> [f32; 4] {
+    let p = tc.custom_placement(ed.selected_custom.unwrap_or(0));
+    let [x, _, width, _] = geometry(w, h, p.center[0]);
+    let y = (h * 0.42).min(160.0);
+    [x + 8.0, y, width - 16.0, h - y - 8.0]
+}
+pub(super) fn draw_key_list(tc: &TouchControls, ed: &Editor, ui: &mut Ui, slot: usize) {
+    draw(tc, ed, ui);
+    let [x, y, w, h] = key_geometry(tc, ed, ui.w, ui.h);
+    ui.fill(x, y, w, h, crate::hud::rgba(47, 47, 47, 255));
+    ui.set_clip(Some([x, y, w, h]));
+    let chosen = ed
+        .selected_custom
+        .and_then(|i| tc.settings.custom_buttons.get(i))
+        .map(|b| b.event_slot(slot))
+        .unwrap_or("");
+    for (i, (name, token)) in key_options().iter().enumerate() {
+        let row_y = y + i as f32 * ROW - ed.key_list_scroll;
+        if row_y + ROW < y || row_y > y + h {
+            continue;
+        }
+        ui.text(Face::Regular, 15.0, x + 14.0, row_y + 14.0, u32::MAX, name);
+        ui.border(
+            x + w - 32.0,
+            row_y + 15.0,
+            18.0,
+            18.0,
+            9.0,
+            crate::hud::rgba(190, 190, 190, 255),
+        );
+        if chosen == *token || (chosen.is_empty() && *token == "key.keyboard.unknown") {
+            ui.rounded(
+                x + w - 28.0,
+                row_y + 19.0,
+                10.0,
+                10.0,
+                5.0,
+                crate::hud::rgba(128, 203, 196, 255),
+            );
+        }
+    }
+    ui.set_clip(None);
+}
+pub(super) fn touch_key_list(
+    tc: &mut TouchControls,
+    ed: &mut Editor,
+    id: u64,
+    point: [f32; 2],
+    viewport: [f32; 2],
+    started: bool,
+    ended: bool,
+    slot: usize,
+) {
+    let [x, y, w, h] = key_geometry(tc, ed, viewport[0], viewport[1]);
+    if started {
+        if point[0] < x || point[0] > x + w || point[1] < y || point[1] > y + h {
+            ed.picker_step = PickerStep::None;
+            ed.key_list_drag = None;
+        } else {
+            ed.key_list_drag = Some((id, point[1], ed.key_list_scroll, false));
+        }
+        return;
+    }
+    let Some((finger, origin, scroll, moved)) = ed.key_list_drag else {
+        return;
+    };
+    if finger != id {
+        return;
+    }
+    let options = key_options();
+    let moved = moved || (point[1] - origin).abs() > 6.0;
+    ed.key_list_scroll =
+        (scroll + origin - point[1]).clamp(0.0, (options.len() as f32 * ROW - h).max(0.0));
+    ed.key_list_drag = if ended {
+        None
+    } else {
+        Some((id, origin, scroll, moved))
+    };
+    if !ended || moved {
+        return;
+    }
+    let row = ((point[1] - y + ed.key_list_scroll) / ROW) as usize;
+    if let Some((_, token)) = options.get(row) {
+        if let Some(button) = ed
+            .selected_custom
+            .and_then(|i| tc.settings.custom_buttons.get_mut(i))
+        {
+            button.set_event_slot(slot, (*token).into());
+        }
+        if let Err(error) = tc.settings.save() {
+            ed.status_msg = Some(error.to_string());
+        }
+        ed.picker_step = PickerStep::None;
+        tc.clicked = true;
     }
 }

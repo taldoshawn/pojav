@@ -27,6 +27,7 @@ legacy_peer = None
 peer_log = None
 pvp_attack_verified = False
 installed = False
+content_storage_verified = False
 try:
     install = adb('install', '-r', '-g', str(apk), check=False)
     (evidence/'install.txt').write_bytes(install.stdout + install.stderr)
@@ -77,6 +78,17 @@ try:
         raise RuntimeError('App crash marker in logcat')
     (evidence/'launcher.png').write_bytes(adb('exec-out', 'screencap', '-p').stdout)
     startup_passed = True
+    # Verify real app-owned external folders and seed one original empty pack.
+    adb_privilege(True)
+    data = '/data/user/0/' + app + '/files'
+    inbox = '/sdcard/Android/data/' + app + '/files/PojavRust/profile-0'
+    for folder in ('resourcepacks', 'mods', 'shaderpacks', 'controls'):
+        adb('shell', 'test', '-d', inbox + '/' + folder)
+    adb('shell', 'mkdir', '-p', inbox + '/resourcepacks/Storage-Smoke')
+    pack_fixture = Path('storage-smoke-pack.mcmeta')
+    pack_fixture.write_text(json.dumps({'pack': {'pack_format': 97, 'description': 'Original storage integration fixture'}}))
+    adb('push', str(pack_fixture), inbox + '/resourcepacks/Storage-Smoke/pack.mcmeta')
+    adb_privilege(False)
     if os.environ.get('PROBE_PROFILES') == 'true':
         def profile_tap(x, y):
             adb('shell', 'input', 'tap', str(x), str(y))
@@ -123,22 +135,29 @@ try:
     if os.environ.get('PROBE_GAME') == 'true':
         # Pixel 2 landscape, fixed profile above. This explores UI and records
         # screenshots for inspection; it does not assert successful gameplay.
-        adb('shell', 'input', 'tap', '1300', '190')
+        adb('shell', 'input', 'tap', '1300', '610')
         for i in range(6):
             time.sleep(30)
             (evidence/f'download-{i}.png').write_bytes(adb('exec-out', 'screencap', '-p').stdout)
-        adb('shell', 'input', 'tap', '1300', '190')
+        adb('shell', 'input', 'tap', '1300', '610')
         for i in range(4):
             time.sleep(30)
             (evidence/f'game-{i}.png').write_bytes(adb('exec-out', 'screencap', '-p').stdout)
             if not adb('shell', 'pidof', app, check=False).stdout.strip():
                 raise RuntimeError('App exited during resource/game probe')
+        adb_privilege(True)
+        installed_pack = adb('shell', 'cat', data + '/resourcepacks/Storage-Smoke/pack.mcmeta').stdout
+        if json.loads(installed_pack) != json.loads(pack_fixture.read_text()):
+            raise RuntimeError('External resource pack did not reach the active game folder')
+        content_storage_verified = True
+        (evidence/'content-storage.json').write_text(json.dumps({'external_folders_created': True, 'new_pack_imported': True, 'shared_saf_picker_tested': False}, indent=2))
+        adb_privilege(False)
         if legacy_fixture is not None:
             (evidence/'legacy-before-input.png').write_bytes(adb('exec-out', 'screencap', '-p').stdout)
             events_file = legacy_fixture.root/'probe-events.jsonl'
             with events_file.open('a') as log:
                 log.write('{"event":"input_begin"}\n')
-            adb('shell', 'input', 'tap', '1649', '562')  # MCPE use/place
+            adb('shell', 'input', 'tap', '287', '745')  # Classic SEC: use/place
             time.sleep(3)
             (evidence/'legacy-after-place.png').write_bytes(adb('exec-out', 'screencap', '-p').stdout)
             # Software rendering can keep a tap held across several simulation
@@ -147,10 +166,10 @@ try:
             (legacy_fixture.root/'probe-command.txt').write_text('reset_blocks')
             time.sleep(5)
             (evidence/'legacy-before-break.png').write_bytes(adb('exec-out', 'screencap', '-p').stdout)
-            adb('shell', 'input', 'tap', '1434', '691')  # MCPE attack/break
+            adb('shell', 'input', 'tap', '72', '745')  # Classic PRI: attack/break
             time.sleep(3)
             (evidence/'legacy-after-break.png').write_bytes(adb('exec-out', 'screencap', '-p').stdout)
-            adb('shell', 'input', 'swipe', '233', '820', '233', '650', '1500')
+            adb('shell', 'input', 'swipe', '179', '745', '179', '745', '1500')
             time.sleep(5)
             (evidence/'legacy-after-move.png').write_bytes(adb('exec-out', 'screencap', '-p').stdout)
             records = [json.loads(line) for line in events_file.read_text().splitlines()]
@@ -171,7 +190,7 @@ try:
                 if legacy_peer.poll() is not None:
                     raise RuntimeError('Second protocol client exited; inspect legacy-peer.log')
                 (evidence/'legacy-before-attack.png').write_bytes(adb('exec-out', 'screencap', '-p').stdout)
-                adb('shell', 'input', 'tap', '1434', '691')
+                adb('shell', 'input', 'tap', '72', '745')
                 time.sleep(3)
                 (evidence/'legacy-after-attack.png').write_bytes(adb('exec-out', 'screencap', '-p').stdout)
                 records = [json.loads(line) for line in events_file.read_text().splitlines()]
@@ -225,7 +244,7 @@ finally:
     (evidence/'logcat.txt').write_bytes(adb('logcat', '-d', check=False).stdout)
     (evidence/'startup.png').write_bytes(adb('exec-out', 'screencap', '-p', check=False).stdout)
     (evidence/'RESULT.json').write_text(json.dumps({'package':app,'apk':apk.name,'installed':installed,
-        'startup_passed':startup_passed,'failure':failed,'local_profiles_verified':profiles_verified,
+        'startup_passed':startup_passed,'content_storage_verified':content_storage_verified,'failure':failed,'local_profiles_verified':profiles_verified,
         'test':'x86_64 emulator API 35 legacy touch interaction' if legacy_fixture is not None else 'x86_64 emulator API 35 startup and optional UI exploration',
         'legacy_basic_interaction_verified':legacy_verified,'world_or_multiplayer_tested':legacy_verified,'fps_benchmark':False,
         'pvp_verified':False, 'pvp_attack_verified':pvp_attack_verified,

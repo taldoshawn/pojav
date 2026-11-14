@@ -15,6 +15,10 @@ pub struct CustomButton {
     pub custom_label: String,
     #[serde(default)]
     pub always_visible: bool,
+    #[serde(default)]
+    pub drawer_id: Option<u64>,
+    #[serde(default)]
+    pub parent_drawer: Option<u64>,
     pub layouts: [Placement; 3],
 }
 impl CustomButton {
@@ -26,6 +30,8 @@ impl CustomButton {
             fourth_key: String::new(),
             custom_label: String::new(),
             always_visible: false,
+            drawer_id: None,
+            parent_drawer: None,
             layouts: [Placement::new(
                 0.68 + (index % 3) as f32 * 0.1,
                 0.35 + (index / 3 % 3) as f32 * 0.12,
@@ -352,6 +358,9 @@ impl TouchControls {
         if self.editor.is_some() {
             return true;
         }
+        if let Some(parent) = self.settings.custom_buttons[index].parent_drawer {
+            if !self.open_drawers.contains(&parent) { return false; }
+        }
         if in_menu {
             p.visible_in_menu
         } else {
@@ -364,7 +373,7 @@ impl TouchControls {
                 && layout::contains(self.custom_placement(i).rect(self.aspect()), point)
         })
     }
-    fn release_custom_finger_key(&mut self, id: u64) {
+    pub(super) fn release_custom_finger_key(&mut self, id: u64) {
         self.passthrough_fingers.remove(&id);
         self.custom_swipe_btn.remove(&id);
         let Some(tokens) = self.custom_fingers.remove(&id) else {
@@ -391,6 +400,16 @@ impl TouchControls {
         let Some(btn) = self.settings.custom_buttons.get(index) else {
             return false;
         };
+        if let Some(drawer) = btn.drawer_id {
+            self.clicked = true;
+            if !self.open_drawers.remove(&drawer) {
+                self.open_drawers.insert(drawer);
+            } else {
+                self.release_drawer_children(drawer);
+            }
+            self.fingers.insert(id, (Role::Ignore, point));
+            return true;
+        }
         let active = btn.active_tokens();
         let Some(key) = active.first().cloned() else {
             return false;
@@ -570,6 +589,7 @@ impl TouchControls {
         let Some(btn) = self.settings.custom_buttons.get(index) else {
             return false;
         };
+        if let Some(drawer) = btn.drawer_id { return self.open_drawers.contains(&drawer); }
         let active = btn.active_tokens();
         !active.is_empty() && active.iter().all(|tok| self.latched_custom.contains(tok))
     }
@@ -580,6 +600,7 @@ impl TouchControls {
         std::mem::take(&mut self.custom_events)
     }
     pub(super) fn clear_custom(&mut self) {
+        self.open_drawers.clear();
         self.custom_last_pos.clear();
         self.custom_swipe_btn.clear();
         let mut all_tokens: std::collections::BTreeSet<String> =
@@ -643,6 +664,57 @@ impl TouchControls {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn all_four_bindings_survive_sanitize_in_both_control_styles() {
+        for style in [ControlStyle::Mcpe, ControlStyle::GoyControl] {
+            let mut settings = Settings::default_for_style(style);
+            let mut button = CustomButton::new("key.keyboard.w".into(), 0);
+            button.second_key = "key.keyboard.left.control".into();
+            button.third_key = "key.mouse.left".into();
+            button.fourth_key = "key.keyboard.space".into();
+            settings.custom_buttons = vec![button];
+            let mut read: Settings = serde_json::from_slice(&serde_json::to_vec(&settings).unwrap()).unwrap();
+            read.sanitize();
+            assert_eq!(read.custom_buttons[0].active_tokens(), ["key.keyboard.w", "key.keyboard.left.control", "key.mouse.left", "key.keyboard.space"]);
+        }
+    }
+    #[test]
+    fn drawer_roundtrip_cloning_and_closing_release_only_child_inputs() {
+        let mut settings = Settings::default_goycontrol();
+        settings.custom_buttons.clear();
+        let drawer = settings.add_drawer();
+        settings.custom_buttons[drawer].layouts = [Placement::new(0.2, 0.2, 0.1); 3];
+        let child = settings.add_drawer_child(drawer).unwrap();
+        settings.custom_buttons[child].key = "key.mouse.left".into();
+        settings.custom_buttons[child].layouts = [Placement::new(0.5, 0.2, 0.1); 3];
+        let mut movement = CustomButton::new("key.keyboard.w".into(), 2);
+        movement.layouts = [Placement::new(0.8, 0.2, 0.1); 3];
+        settings.custom_buttons.push(movement);
+        let bytes = serde_json::to_vec(&settings).unwrap();
+        let mut t = TouchControls::default();
+        t.settings = serde_json::from_slice(&bytes).unwrap();
+        t.viewport(1920, 1080);
+        assert!(!t.custom_visible_for_state(child, false));
+        t.update(1, [0.2, 0.2], true, false);
+        t.update(1, [0.2, 0.2], false, true);
+        assert!(t.key_events().is_empty());
+        assert!(t.custom_visible_for_state(child, false));
+        t.update(2, [0.5, 0.2], true, false);
+        t.update(3, [0.8, 0.2], true, false);
+        assert_eq!(t.key_events().len(), 2);
+        t.update(4, [0.2, 0.2], true, false);
+        assert_eq!(t.key_events(), [("key.mouse.left".into(), false)]);
+        assert!(!t.custom_visible_for_state(child, false));
+        assert_eq!(t.held_custom_tokens().collect::<Vec<_>>(), ["key.keyboard.w"]);
+        let clone = t.settings.clone_custom_button(drawer).unwrap();
+        let clone_id = t.settings.custom_buttons[clone].drawer_id.unwrap();
+        assert_ne!(Some(clone_id), t.settings.custom_buttons[drawer].drawer_id);
+        assert_eq!(t.settings.custom_buttons.iter().filter(|b| b.parent_drawer == Some(clone_id)).count(), 1);
+        t.settings.remove_custom_button(drawer);
+        assert_eq!(t.settings.custom_buttons.len(), 3);
+        assert_eq!(t.settings.custom_buttons.iter().filter(|b| b.parent_drawer == Some(clone_id)).count(), 1);
+    }
+
     #[test]
     fn classic_preset_keeps_keyboard_and_simultaneous_movement_after_reload() {
         let serialized = serde_json::to_vec(&Settings::default_pojav()).unwrap();
