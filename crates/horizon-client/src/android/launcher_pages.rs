@@ -386,6 +386,7 @@ pub(super) enum Action {
     GameVersion,
     ChooseGameVersion(bool),
     KeyboardControlPreset,
+    PojavControlPreset,
     OpenControlEditor,
     CloseControlEditor,
     ControlProfileChooser,
@@ -6020,7 +6021,13 @@ impl Launcher {
                 let invert_y_active = opts.invert_y || touch_cfg.invert_y;
                 let sprint_latch_active = opts.toggle_sprint || touch_cfg.sprint_toggle;
 
-                let rows: [(&str, &str, SettingControl<'_>); 31] = [
+                let rows: [(&str, &str, SettingControl<'_>); 33] = [
+                    ("Pojav-style controls", "Editable PRI/SEC, movement, inventory, DEBUG, CHAT, TAB and MOUSE buttons",
+                     SettingControl::Button("Create Pojav layout", Action::PojavControlPreset, false)),
+                    ("Virtual mouse speed", "Adjust pointer movement speed",
+                     SettingControl::Slider { value_label: &format!("{:.2}x", touch_cfg.virtual_mouse_sensitivity),
+                     fraction: (touch_cfg.virtual_mouse_sensitivity - 0.25) / 2.75,
+                     minus_action: Action::VirtualMouseSpeedDelta(-0.10), plus_action: Action::VirtualMouseSpeedDelta(0.10) }),
                     ("Keyboard controls", "Create an editable WASD layout with keyboard and mouse buttons",
                      SettingControl::Button("Create WASD layout", Action::KeyboardControlPreset, false)),
                     ("FPS COUNTER", "Measured frames; does not change the frame limit",
@@ -6980,6 +6987,16 @@ impl Launcher {
                     style.label(),
                     touch.preset_name
                 );
+            }
+            Some(Action::PojavControlPreset) => {
+                use horizon_client::touch::{Settings, ControlStyle};
+                let home = self.catalog.config.game_home(&self.home);
+                let mut preset = Settings::default();
+                preset.control_style = ControlStyle::GoyControl;
+                preset.custom_buttons = Settings::default_goy_buttons();
+                preset.virtual_mouse_enabled = true;
+                preset.save_new_preset(&home, "Pojav classic", "Editable keyboard and mouse controls")?;
+                self.catalog.status = "Pojav layout selected. Use Open Editor to edit buttons.".into();
             }
             Some(Action::KeyboardControlPreset) => {
                 use horizon_client::touch::{CustomButton, Settings};
