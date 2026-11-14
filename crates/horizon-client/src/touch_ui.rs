@@ -424,6 +424,14 @@ pub fn draw_pointer(batch: &mut HudBatch, atlas: &HudAtlas, cursor: (f32, f32), 
     let s = h / 16.0;
     let x = cursor.0.clamp(0.0, (sw - 3.0 * scale).max(0.0));
     let y = cursor.1.clamp(0.0, (sh - 3.0 * scale).max(0.0));
+    // Resource packs can replace the cursor without native code or a Java mod.
+    // The image's top-left pixel is its hotspot; transparent padding is kept.
+    const CUSTOM_CURSOR: &str = "gui/sprites/pojav/cursor";
+    if let Some(sprite) = atlas.sprites.get(CUSTOM_CURSOR) {
+        let aspect = sprite.w as f32 / sprite.h.max(1) as f32;
+        batch.sprite_scaled(atlas, CUSTOM_CURSOR, x, y, h * aspect, h, rgba(255, 255, 255, 255));
+        return;
+    }
     let pt = |dx: f32, dy: f32| -> [f32; 2] {
         [(x + dx * s).clamp(0.0, sw), (y + dy * s).clamp(0.0, sh)]
     };
