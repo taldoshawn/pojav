@@ -186,6 +186,11 @@ try:
             (legacy_fixture.root/'probe-command.txt').write_text('show_pickup')
             time.sleep(5)
             (evidence/'legacy-dropped-item.png').write_bytes(adb('exec-out', 'screencap', '-p').stdout)
+            # Hide the hand/HUD to inspect pickups that otherwise overlap the
+            # large first-person held block on this software-rendered device.
+            adb('shell', 'input', 'keyevent', '131')  # Android KEYCODE_F1
+            time.sleep(3)
+            (evidence/'legacy-dropped-item-unobstructed.png').write_bytes(adb('exec-out', 'screencap', '-p').stdout)
         if os.environ.get('PROBE_WORLD') == 'true':
             # Coordinates verified against this Pixel 2 profile's screenshots
             # and the title/create-world layout (GUI scale 4).
