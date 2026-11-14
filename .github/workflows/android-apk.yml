@@ -101,6 +101,12 @@ jobs:
           /tmp/pojav-fps-hud-tests
       - name: Prepare verified private engine inputs
         run: python3 tools/android_prepare.py --java-home "$JAVA_HOME_25_X64"
+      - name: Verify touch controls on the host
+        if: matrix.abi == 'arm64-v8a'
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y libasound2-dev libudev-dev
+          CARGO_PROFILE_TEST_DEBUG=0 cargo test -p horizon-client-render --lib touch::custom::tests --locked
       - name: Restore this fork's signing identity
         env:
           KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}

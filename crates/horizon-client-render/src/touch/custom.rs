@@ -403,7 +403,8 @@ impl TouchControls {
             let now_on = !all_latched;
             for tok in active {
                 if now_on {
-                    if self.latched_custom.insert(tok.clone()) {
+                    let held_by_finger = self.custom_fingers.values().any(|keys| keys.contains(&tok));
+                    if self.latched_custom.insert(tok.clone()) && !held_by_finger {
                         self.custom_events.push((tok, true));
                     }
                 } else if self.latched_custom.remove(&tok) {
@@ -428,7 +429,11 @@ impl TouchControls {
 
         let mut to_emit = Vec::with_capacity(active.len());
         for tok in &active {
-            to_emit.push((tok.clone(), true));
+            if !self.latched_custom.contains(tok)
+                && !self.custom_fingers.values().any(|keys| keys.contains(tok))
+            {
+                to_emit.push((tok.clone(), true));
+            }
         }
         self.custom_fingers.insert(id, active);
         self.custom_events.extend(to_emit);
