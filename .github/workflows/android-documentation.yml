@@ -1,0 +1,40 @@
+name: Android documentation and examples
+on:
+  workflow_dispatch:
+  workflow_run:
+    workflows: [Android APK]
+    types: [completed]
+permissions:
+  contents: read
+jobs:
+  documentation:
+    if: github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+      - name: Package developer documentation and original examples
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          import json, os, zipfile
+          out = Path('dist'); out.mkdir()
+          files = [Path('README.md'), Path('LICENSE'), Path('THIRD_PARTY_NOTICES.md')]
+          for root in ('docs', 'examples/pojav-cursor', 'crates/horizon-mod-sdk/examples/coords-hud', 'crates/horizon-mod-sdk/examples/ruby-content'):
+              files.extend(p for p in Path(root).rglob('*') if p.is_file())
+          with zipfile.ZipFile(out/'Pojav-Rust-Documentacao-e-Exemplos.zip', 'w', zipfile.ZIP_DEFLATED) as archive:
+              for path in sorted(set(files)):
+                  archive.write(path, path.as_posix())
+              archive.writestr('LEIA-PRIMEIRO.txt', 'Guia principal: docs/pojav-development.md\nSource: https://github.com/taldoshawn/pojav\nOs exemplos requerem o SDK do mesmo checkout. Consulte as limitacoes documentadas.\n')
+              archive.writestr('SOURCE.json', json.dumps({'commit': os.environ['GITHUB_SHA'], 'repository': os.environ['GITHUB_REPOSITORY']}))
+          with zipfile.ZipFile(out/'Pojav-Rust-Cursor-Exemplo.zip', 'w', zipfile.ZIP_DEFLATED) as archive:
+              root = Path('examples/pojav-cursor')
+              for path in sorted(root.rglob('*')):
+                  if path.is_file(): archive.write(path, path.relative_to(root).as_posix())
+          PY
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: pojav-rust-documentation-and-examples
+          path: dist/
+          if-no-files-found: error
+          retention-days: 30
