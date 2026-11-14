@@ -99,6 +99,8 @@ jobs:
           /tmp/pojav-local-profile-tests
           rustc --edition=2024 --test crates/horizon-client/src/android/fps_hud.rs -o /tmp/pojav-fps-hud-tests
           /tmp/pojav-fps-hud-tests
+          rustc --edition=2024 --test crates/horizon-client/src/android/content_storage.rs -o /tmp/pojav-content-storage-tests
+          /tmp/pojav-content-storage-tests
       - name: Prepare verified private engine inputs
         run: python3 tools/android_prepare.py --java-home "$JAVA_HOME_25_X64"
       - name: Verify touch controls on the host

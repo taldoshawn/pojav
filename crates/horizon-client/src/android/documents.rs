@@ -23,6 +23,7 @@ struct Request {
     appearance: Option<crate::skins::library::Kind>,
     target_dir: Option<PathBuf>,
     control_import: bool,
+    shared_content: bool,
     export_bytes: Option<(Vec<u8>, String)>,
     export_source_path: Option<(PathBuf, String)>,
     home: PathBuf,
@@ -148,6 +149,7 @@ pub fn begin(kind: Kind, home: PathBuf) -> std::result::Result<(), String> {
             appearance: None,
             target_dir: None,
             control_import: false,
+            shared_content: false,
             export_bytes: None,
             export_source_path: None,
             home,
@@ -194,6 +196,7 @@ pub fn begin_appearance(
             appearance: Some(kind),
             target_dir: None,
             control_import: false,
+            shared_content: false,
             export_bytes: None,
             export_source_path: None,
             home,
@@ -228,6 +231,7 @@ pub fn begin_into_dir(target_dir: PathBuf) -> std::result::Result<(), String> {
             appearance: None,
             target_dir: Some(target_dir),
             control_import: false,
+            shared_content: false,
             export_bytes: None,
             export_source_path: None,
             home: PathBuf::new(),
@@ -239,6 +243,20 @@ pub fn begin_into_dir(target_dir: PathBuf) -> std::result::Result<(), String> {
         return Err("Android document picker is unavailable".into());
     }
     notice("Choose a file to import into this folder", false);
+    Ok(())
+}
+
+/// Prepares and imports a user-selected shared content root outside Android/data.
+pub fn begin_shared_content(game_home: PathBuf) -> std::result::Result<(), String> {
+    if busy() { return Err("Conclua a operação de arquivos atual".into()); }
+    CANCEL.store(false, Ordering::Relaxed);
+    let cache = crate::platform::cache_dir().ok_or("Cache Android indisponível")?.join("shared-content");
+    let mut s = STATE.lock().unwrap_or_else(|e| e.into_inner());
+    s.request = Some(Request { kind: Kind::Packs, appearance: None, target_dir: Some(game_home), control_import: false, shared_content: true, export_bytes: None, export_source_path: None, home: PathBuf::new(), cache });
+    s.status_title = "Pasta compartilhada".into();
+    s.status_detail = "Escolha ou crie uma pasta PojavRust em Documentos".into();
+    drop(s);
+    if !crate::native_ime::pick_document_tree() { picker_failed("Seletor de pastas indisponível"); return Err("Seletor de pastas indisponível".into()); }
     Ok(())
 }
 
@@ -262,6 +280,7 @@ pub fn begin_folder_into_dir(target_dir: PathBuf) -> std::result::Result<(), Str
             appearance: None,
             target_dir: Some(target_dir),
             control_import: false,
+            shared_content: false,
             export_bytes: None,
             export_source_path: None,
             home: PathBuf::new(),
@@ -297,6 +316,7 @@ pub fn begin_control_import(game_home: PathBuf) -> std::result::Result<(), Strin
             appearance: None,
             target_dir: None,
             control_import: true,
+            shared_content: false,
             export_bytes: None,
             export_source_path: None,
             home: game_home,
@@ -339,6 +359,7 @@ pub fn begin_control_export(
             appearance: None,
             target_dir: None,
             control_import: false,
+            shared_content: false,
             export_bytes: Some((bytes, suggested_name.clone())),
             export_source_path: None,
             home: game_home,
@@ -382,6 +403,7 @@ pub fn begin_file_export(
             appearance: None,
             target_dir: None,
             control_import: false,
+            shared_content: false,
             export_bytes: None,
             export_source_path: Some((source_path, suggested_name.clone())),
             home,
@@ -643,6 +665,22 @@ pub extern "system" fn document_result(
                     let target_dir = pending
                         .target_dir
                         .ok_or_else(|| "No target directory for folder import")?;
+                    if pending.shared_content {
+                        crate::document_bridge::prepare_content_tree(&mut env, activity.as_obj(), &uri).map_err(|e| e.to_string())?;
+                        let staging = pending.cache.join(format!("import-{}", SystemTime::now().duration_since(UNIX_EPOCH)?.as_nanos()));
+                        std::fs::create_dir_all(&staging)?;
+                        let result = (|| -> Result<_> {
+                            let folder = crate::document_bridge::copy_tree(&mut env, activity.as_obj(), &uri, &staging, |done, total, name| {
+                                set_progress("Importando conteúdo compartilhado", name, Some(done as f32 / total.max(1) as f32));
+                                !CANCEL.load(Ordering::Relaxed)
+                            }).map_err(|e| e.to_string())?;
+                            Ok(crate::content_storage::import(&target_dir, &staging.join(folder))?)
+                        })();
+                        let _ = std::fs::remove_dir_all(&staging);
+                        let report = result?;
+                        notice(format!("Pastas prontas: resourcepacks, mods, shaderpacks e controls. {} arquivos importados; {} existentes preservados. Use esta opção novamente após adicionar arquivos.", report.imported, report.existing), true);
+                        return Ok(());
+                    }
                     let copied = crate::document_bridge::copy_tree(
                         &mut env,
                         activity.as_obj(),

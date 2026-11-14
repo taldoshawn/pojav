@@ -30,6 +30,8 @@ mod fps_hud;
 mod local_profiles;
 #[path = "android/catalog.rs"]
 mod catalog;
+#[path = "android/content_storage.rs"]
+mod content_storage;
 #[path = "android/device_preferences.rs"]
 mod device_preferences;
 #[path = "android/device_runtime.rs"]

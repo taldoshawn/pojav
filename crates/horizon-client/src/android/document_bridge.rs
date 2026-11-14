@@ -584,3 +584,50 @@ fn flatten_nested_world_dir_if_needed(dest_parent: &std::path::Path, copied_dir:
         }
     }
 }
+
+/// Creates the content folders only inside the tree explicitly granted by Android's picker.
+pub fn prepare_content_tree(
+    env: &mut JNIEnv<'_>, activity: &JObject<'_>, tree: &str,
+) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+    use jni::objects::JValue;
+    env.with_local_frame(48, |env| {
+        let resolver = env.call_method(activity, "getContentResolver", "()Landroid/content/ContentResolver;", &[])?.l()?;
+        let text = JObject::from(env.new_string(tree)?);
+        let uri = env.call_static_method("android/net/Uri", "parse", "(Ljava/lang/String;)Landroid/net/Uri;", &[JValue::Object(&text)])?.l()?;
+        let id = env.call_static_method("android/provider/DocumentsContract", "getTreeDocumentId", "(Landroid/net/Uri;)Ljava/lang/String;", &[JValue::Object(&uri)])?.l()?;
+        let parent = env.call_static_method("android/provider/DocumentsContract", "buildDocumentUriUsingTree", "(Landroid/net/Uri;Ljava/lang/String;)Landroid/net/Uri;", &[JValue::Object(&uri), JValue::Object(&id)])?.l()?;
+        let children = env.call_static_method("android/provider/DocumentsContract", "buildChildDocumentsUriUsingTree", "(Landroid/net/Uri;Ljava/lang/String;)Landroid/net/Uri;", &[JValue::Object(&uri), JValue::Object(&id)])?.l()?;
+        let projection = env.new_object_array(2, "java/lang/String", JObject::null())?;
+        env.set_object_array_element(&projection, 0, env.new_string("_display_name")?)?;
+        env.set_object_array_element(&projection, 1, env.new_string("mime_type")?)?;
+        let null = JObject::null();
+        let cursor = env.call_method(&resolver, "query", "(Landroid/net/Uri;[Ljava/lang/String;Ljava/lang/String;[Ljava/lang/String;Ljava/lang/String;)Landroid/database/Cursor;", &[JValue::Object(&children), JValue::Object(projection.as_ref()), JValue::Object(&null), JValue::Object(&null), JValue::Object(&null)])?.l()?;
+        if cursor.is_null() { return Err("Não foi possível ler a pasta selecionada".into()); }
+        let mut found = std::collections::BTreeMap::new();
+        let result = (|| -> jni::errors::Result<()> {
+            while env.call_method(&cursor, "moveToNext", "()Z", &[])?.z()? {
+                let (name, mime) = env.with_local_frame(4, |env| -> jni::errors::Result<(String, String)> {
+                    let name = env.call_method(&cursor, "getString", "(I)Ljava/lang/String;", &[JValue::Int(0)])?.l()?;
+                    let mime = env.call_method(&cursor, "getString", "(I)Ljava/lang/String;", &[JValue::Int(1)])?.l()?;
+                    Ok((env.get_string((&name).into())?.into(), env.get_string((&mime).into())?.into()))
+                })?;
+                found.insert(name, mime);
+            }
+            Ok(())
+        })();
+        if result.is_err() { let _ = env.exception_clear(); }
+        env.call_method(&cursor, "close", "()V", &[])?;
+        result?;
+        for name in ["resourcepacks", "mods", "shaderpacks", "controls"] {
+            if let Some(mime) = found.get(name) {
+                if mime != "vnd.android.document/directory" { return Err(format!("{name} já existe e não é uma pasta").into()); }
+                continue;
+            }
+            let mime = JObject::from(env.new_string("vnd.android.document/directory")?);
+            let name = JObject::from(env.new_string(name)?);
+            let created = env.call_static_method("android/provider/DocumentsContract", "createDocument", "(Landroid/content/ContentResolver;Landroid/net/Uri;Ljava/lang/String;Ljava/lang/String;)Landroid/net/Uri;", &[JValue::Object(&resolver), JValue::Object(&parent), JValue::Object(&mime), JValue::Object(&name)])?.l()?;
+            if created.is_null() { return Err("O provedor não permitiu criar uma pasta de conteúdo".into()); }
+        }
+        Ok(())
+    })
+}

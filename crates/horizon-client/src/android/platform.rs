@@ -766,3 +766,9 @@ pub fn apply_high_refresh_rate(preferred_hz: u16) {
         Ok(())
     });
 }
+
+/// Android-provided app-owned external files; no broad storage permission is needed.
+pub fn content_inbox(profile: usize) -> Option<std::path::PathBuf> {
+    crate::APP.with(|slot| slot.borrow().as_ref()?.external_data_path())
+        .map(|root| root.join("PojavRust").join(format!("profile-{profile}")))
+}

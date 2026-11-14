@@ -134,6 +134,11 @@ impl Launcher {
             }
         });
         let mut catalog = Catalog::new(&home);
+        let inbox = crate::platform::content_inbox(catalog.config.profile as usize);
+        if let Err(error) = crate::content_storage::initialize(&catalog.config.game_home(&home), inbox.as_deref()) {
+            log::warn!("Não foi possível preparar as pastas de conteúdo: {error}");
+        }
+
         if let Err(error) = ensure_fps_counter(&catalog.config.game_home(&home)) {
             log::warn!("Could not initialize FPS counter: {error}");
         }
@@ -554,6 +559,13 @@ impl Launcher {
             }
             self.catalog.config.keypad_controls = false;
             let game_home = self.catalog.config.game_home(&self.home);
+            if let Some(inbox) = crate::platform::content_inbox(self.catalog.config.profile as usize) {
+                let report = crate::content_storage::import(&game_home, &inbox)?;
+                log::info!("Conteúdo externo: {} importados, {} arquivos existentes preservados", report.imported, report.existing);
+            } else {
+                crate::content_storage::initialize(&game_home, None)?;
+            }
+
             if !self.session_ready && crate::account::Accounts::load().selected().is_some() {
                 let id = self.catalog.config.microsoft_client_id.clone();
                 let wardrobe_home = self.home.join("wardrobe");

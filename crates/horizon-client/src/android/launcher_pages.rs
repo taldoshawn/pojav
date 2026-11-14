@@ -392,6 +392,7 @@ pub(super) enum Action {
     ControlProfileChooser,
     ChooseControlProfile(u32),
     SaveControlProfileAsNew,
+    SharedContentFolder,
     ExportControlProfile,
     ImportControlProfile,
     MouseSensDelta(f32),
@@ -5608,7 +5609,7 @@ impl Launcher {
                 let fps = crate::fps_hud::Preferences::load(&game_home,
                     fps_mods.enabled.contains("fps_overlay") && !fps_mods.disabled.contains("fps_overlay"));
                 let studio_offset = 196.0;
-                let count = 31;
+                let count = 34;
                 let max_scroll =
                     (studio_offset + count as f32 * step_y - (list_bottom - list_top)).max(0.0);
                 self.catalog.scroll = self.catalog.scroll.clamp(0.0, max_scroll);
@@ -5693,7 +5694,7 @@ impl Launcher {
                 let invert_y_active = opts.invert_y || touch_cfg.invert_y;
                 let sprint_latch_active = opts.toggle_sprint || touch_cfg.sprint_toggle;
 
-                let rows: [(&str, &str, SettingControl<'_>); 33] = [
+                let rows: [(&str, &str, SettingControl<'_>); 34] = [
                     ("Controles Pojav", "Editable PRI/SEC, movement, inventory, DEBUG, CHAT, TAB and MOUSE buttons",
                      SettingControl::Button("Usar HUD clássico Pojav", Action::PojavControlPreset, false)),
                     ("Virtual mouse speed", "Adjust pointer movement speed",
@@ -5728,6 +5729,11 @@ impl Launcher {
                         &preset_row_title,
                         &preset_sub,
                         SettingControl::Button(&preset_label, Action::ControlProfileChooser, false),
+                    ),
+                    (
+                        "Pasta compartilhada fora de Android/data",
+                        "Cria pastas para mods, texturas, shaders e controles na pasta escolhida e importa arquivos novos",
+                        SettingControl::Button("Preparar / importar pasta", Action::SharedContentFolder, true),
                     ),
                     (
                         "Import Controls from File Manager",
@@ -6829,6 +6835,9 @@ impl Launcher {
             Some(Action::CancelReplaceDuplicatePreset) => {
                 self.catalog.duplicate_preset_confirm = None;
                 self.catalog.status = "Cancelled replacing existing control preset.".into();
+            }
+            Some(Action::SharedContentFolder) => {
+                crate::documents::begin_shared_content(self.catalog.config.game_home(&self.home))?;
             }
             Some(Action::ExportControlProfile) => {
                 let game_home = self.catalog.config.game_home(&self.home);
