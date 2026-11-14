@@ -691,13 +691,13 @@ impl Settings {
             ("3RD", "key.keyboard.f5", 0.055, 0.115, 0.09, 0.07),
             ("MOUSE", "mouse.virtual.toggle", 0.945, 0.04, 0.09, 0.07),
             ("PRI", "key.mouse.left", 0.04, 0.69, 0.055, 0.115),
-            ("W", "key.keyboard.w", 0.10, 0.69, 0.055, 0.115),
+            ("▲", "key.keyboard.w", 0.10, 0.69, 0.055, 0.115),
             ("SEC", "key.mouse.right", 0.16, 0.69, 0.055, 0.115),
-            ("A", "key.keyboard.a", 0.04, 0.81, 0.055, 0.115),
-            ("SHIFT", "key.keyboard.left.shift", 0.10, 0.81, 0.055, 0.115),
-            ("D", "key.keyboard.d", 0.16, 0.81, 0.055, 0.115),
+            ("◀", "key.keyboard.a", 0.04, 0.81, 0.055, 0.115),
+            ("◇", "key.keyboard.left.shift", 0.10, 0.81, 0.055, 0.115),
+            ("▶", "key.keyboard.d", 0.16, 0.81, 0.055, 0.115),
             ("GUI", "key.keyboard.f1", 0.04, 0.93, 0.055, 0.115),
-            ("S", "key.keyboard.s", 0.10, 0.93, 0.055, 0.115),
+            ("▼", "key.keyboard.s", 0.10, 0.93, 0.055, 0.115),
             ("INV", "key.keyboard.e", 0.16, 0.93, 0.055, 0.115),
             ("SPACE", "key.keyboard.space", 0.91, 0.81, 0.055, 0.115),
         ] {
@@ -708,8 +708,8 @@ impl Settings {
             p.shape = 1;
             p.roundness = 0.0;
             p.stroke_roundness = 0.0;
-            p.button_color = 0xFF777777;
-            p.stroke_color = 0xFFCCCCCC;
+            p.button_color = 0xFF111111;
+            p.stroke_color = 0xFF333333;
             p.opacity = 0.55;
             p.use_goy_style = true;
             p.visible_in_game = true;
@@ -756,7 +756,7 @@ impl Settings {
         let mut s: Self = std::fs::read(path)
             .ok()
             .and_then(|b| serde_json::from_slice(&b).ok())
-            .unwrap_or_default();
+            .unwrap_or_else(Self::default_pojav);
         s.sanitize();
         if s.control_style == ControlStyle::GoyControl && s.custom_buttons.is_empty() {
             s.custom_buttons = Self::default_goy_buttons();

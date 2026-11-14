@@ -544,6 +544,11 @@ pub fn draw_pointer(batch: &mut HudBatch, atlas: &HudAtlas, cursor: (f32, f32), 
 }
 
 impl TouchUi {
+    pub fn recenter_pointer(&mut self) {
+        self.cursor_initialized = false;
+        self.cancel_relative();
+    }
+
     /// Ensures the virtual mouse cursor spawns at the exact center `(width * 0.5, height * 0.5)`
     /// of the playable viewport and scales proportionally across viewport/orientation changes
     /// without offset drift or sudden jumps.
@@ -4669,26 +4674,7 @@ pub fn draw_hud_editor(
     let muted_c = theme.text_muted;
     let danger_c = theme.danger;
 
-    // 1. Dark Blueprint Canvas & Alignment Grid
-    ui.fill(0.0, 0.0, w, h, rgba(9, 10, 16, 228));
-    let step = if tc.settings.snap_to_grid {
-        0.025
-    } else {
-        0.05
-    };
-    let grid_line_col = if tc.settings.snap_to_grid {
-        color::with_alpha(accent, 0.16)
-    } else {
-        rgba(255, 255, 255, 11)
-    };
-    let mut g = step;
-    while g < 1.0 {
-        ui.fill(w * g, 0.0, 1.0, h, grid_line_col);
-        ui.fill(0.0, h * g, w, 1.0, grid_line_col);
-        g += step;
-    }
-    ui.fill(w * 0.5, 0.0, 1.0, h, rgba(154, 123, 255, 38));
-    ui.fill(0.0, h * 0.5, w, 1.0, rgba(154, 123, 255, 38));
+    ui.fill(0.0, 0.0, w, h, rgba(35, 35, 35, 255));
 
     // JoystickMoveArea visual zone indicator when Move is selected
     if ed.selected == Some(Control::Move) && ed.selected_custom.is_none() {
@@ -4935,103 +4921,16 @@ pub fn draw_hud_editor(
         );
     }
 
-    // 6. Material 3 Moveable Floating Menu Pod with Direct Grid Snap Toggle (`492x48dp`)
-    let pod_w = if ed.pod_expanded { 492.0 } else { 52.0 };
-    let pod_h = 48.0;
-    let pod_x = (tc.settings.floating_menu_pos[0] * w).clamp(8.0, (w - pod_w - 8.0).max(8.0));
-    let pod_y = (tc.settings.floating_menu_pos[1] * h).clamp(6.0, (h - pod_h - 6.0).max(6.0));
-
-    ui.rounded(
-        pod_x + 2.0,
-        pod_y + 4.0,
-        pod_w,
-        pod_h,
-        10.0,
-        rgba(0, 0, 0, 145),
-    );
-    ui.rounded(pod_x, pod_y, pod_w, pod_h, 10.0, bg_card);
-    ui.stroke_rounded(pod_x, pod_y, pod_w, pod_h, 10.0, 1.5, accent);
-
-    // Main draggable M3 hub button on the left of the pod (40x40dp)
-    ui.rounded(
-        pod_x + 4.0,
-        pod_y + 4.0,
-        40.0,
-        40.0,
-        8.0,
-        if ed.menu_open { accent } else { accent_soft },
-    );
-    ui.icon(
-        if tc.settings.control_style == ControlStyle::Mcpe {
-            Icon::HorizonLogo
-        } else {
-            Icon::MenuEquals
-        },
-        pod_x + 13.0,
-        pod_y + 13.0,
-        22.0,
-        if ed.menu_open { accent_fg } else { accent },
-    );
-
-    if ed.pod_expanded {
-        let can_copy = ed.selected_custom.is_some()
-            || (ed.selected.is_some() && ed.selected != Some(Control::Move));
-        let grid_lbl = if tc.settings.snap_to_grid {
-            "Grid: ON"
-        } else {
-            "Grid"
-        };
-        let items: [(Option<Icon>, &str, f32, bool, bool); 7] = [
-            (Some(Icon::Undo), "", 38.0, !ed.undo_stack.is_empty(), false),
-            (Some(Icon::Redo), "", 38.0, !ed.redo_stack.is_empty(), false),
-            (Some(Icon::Gear), "Props", 68.0, true, ed.props_open),
-            (Some(Icon::Crosshair), grid_lbl, 74.0, true, tc.settings.snap_to_grid),
-            (Some(Icon::Plus), "Add", 58.0, true, false),
-            (Some(Icon::Plus), "Copy", 60.0, can_copy, false),
-            (Some(Icon::Check), "Save", 64.0, true, true),
-        ];
-        let mut ix = pod_x + 50.0;
-        for (ic, lbl, iw, enabled, hi) in items {
-            let r = [ix, pod_y + 5.0, iw, 38.0];
-            let bg = if lbl == "Save" {
-                accent
-            } else if hi {
-                accent_soft
-            } else {
-                bg_hi
-            };
-            ui.rounded(r[0], r[1], r[2], r[3], 7.0, bg);
-            ui.border(
-                r[0],
-                r[1],
-                r[2],
-                r[3],
-                7.0,
-                if hi || lbl == "Save" {
-                    accent
-                } else {
-                    border_c
-                },
-            );
-            let fg = if lbl == "Save" {
-                accent_fg
-            } else if !enabled {
-                color::hex(0x5E5875, 200)
-            } else if hi {
-                accent
-            } else {
-                text_c
-            };
-            if let Some(icon) = ic {
-                if lbl.is_empty() {
-                    ui.icon(icon, r[0] + (iw - 18.0) * 0.5, r[1] + 10.0, 18.0, fg);
-                } else {
-                    ui.icon(icon, r[0] + 8.0, r[1] + 11.0, 15.0, fg);
-                    ui.text(Face::SemiBold, 10.8, r[0] + 25.0, r[1] + 10.5, fg, lbl);
-                }
-            }
-            ix += iw + 5.0;
-        }
+    let pod_y: f32 = 0.0;
+    let pod_h: f32 = 30.0;
+    let gear = [w * 0.74, 0.0, 32.0, 30.0];
+    ui.icon(Icon::Gear, gear[0] + 5.0, 3.0, 22.0, text_c);
+    ui.text(Face::Regular, 12.0, w * 0.45, 33.0, muted_c, "Toque na engrenagem para abrir o menu");
+    ui.text(Face::Regular, 12.0, w * 0.45, 50.0, muted_c, "Toque em um botão para editar suas teclas e tamanho");
+    if ed.classic_context {
+        pojav_editor::draw_context(&mut ui);
+        ui.finish();
+        return;
     }
 
     if let Some(msg) = ed
@@ -7070,6 +6969,13 @@ pub fn touch_hud_editor(
         return false;
     }
 
+    if ed.classic_context || (started && p[0] >= w * 0.74 && p[0] <= w * 0.74 + 32.0 && p[1] <= 30.0 && !ed.props_open) {
+        if started { pojav_editor::touch_context(tc, &mut ed, p, [w, h]); }
+        tc.editor = Some(ed);
+        return false;
+    }
+    let tap_properties = ended && ed.canvas_origin.is_some_and(|origin| (point[0] - origin[0]).hypot(point[1] - origin[1]) * h < 6.0);
+    if ended { ed.canvas_origin = None; }
     let closed = (|| -> bool {
         // 1. Handle ongoing drag / resize / floating-pod move / horizontal keyboard scroll
         if !started {
@@ -8478,111 +8384,6 @@ pub fn touch_hud_editor(
             return false;
         }
 
-        // 5. Check Material 3 Moveable Floating Menu Pod with Direct Grid Snap Toggle (492x48dp)
-        let pod_w = if ed.pod_expanded { 492.0 } else { 52.0 };
-        let pod_h = 48.0;
-        let pod_x = (tc.settings.floating_menu_pos[0] * w).clamp(8.0, (w - pod_w - 8.0).max(8.0));
-        let pod_y = (tc.settings.floating_menu_pos[1] * h).clamp(6.0, (h - pod_h - 6.0).max(6.0));
-        if inside([pod_x, pod_y, 48.0, pod_h]) {
-            ed.active_drag = Some((
-                id,
-                EditorDragKind::FloatingPod {
-                    offset: [p[0] - pod_x, p[1] - pod_y],
-                    moved: false,
-                },
-            ));
-            tc.clicked = true;
-            return false;
-        }
-        if ed.pod_expanded && inside([pod_x, pod_y, pod_w, pod_h]) {
-            let widths = [38.0, 38.0, 68.0, 74.0, 58.0, 60.0, 64.0];
-            let mut ix = pod_x + 50.0;
-            for (btn_i, iw) in widths.into_iter().enumerate() {
-                if inside([ix, pod_y + 5.0, iw, 38.0]) {
-                    match btn_i {
-                        0 => {
-                            // Undo
-                            if let Some(prev) = ed.undo_stack.pop() {
-                                ed.redo_stack.push(tc.settings.clone());
-                                tc.settings = prev;
-                                clamp_editor_custom_selection(&mut ed, &tc.settings);
-                                let _ = tc.settings.save();
-                                ed.status_msg = Some("Undid last change.".into());
-                            }
-                        }
-                        1 => {
-                            // Redo
-                            if let Some(next) = ed.redo_stack.pop() {
-                                ed.undo_stack.push(tc.settings.clone());
-                                tc.settings = next;
-                                clamp_editor_custom_selection(&mut ed, &tc.settings);
-                                let _ = tc.settings.save();
-                                ed.status_msg = Some("Redid change.".into());
-                            }
-                        }
-                        2 => {
-                            // Open Component Property Inspector
-                            ed.props_open = !ed.props_open;
-                            ed.menu_open = false;
-                        }
-                        3 => {
-                            // Toggle Snap to Grid & Neighbor Edge-Sticking
-                            push_undo_snapshot(&mut ed, &tc.settings);
-                            tc.settings.snap_to_grid = !tc.settings.snap_to_grid;
-                            let _ = tc.settings.save();
-                            ed.status_msg = Some(if tc.settings.snap_to_grid {
-                                "Snap to Grid & Neighbor Buttons: ON".into()
-                            } else {
-                                "Snap to Grid & Neighbor Buttons: OFF".into()
-                            });
-                        }
-                        4 => {
-                            // + Add Button (supported in BOTH MCPE and GoyControl modes!)
-                            if tc.settings.custom_buttons.len() < 32 {
-                                push_undo_snapshot(&mut ed, &tc.settings);
-                                let idx = tc.settings.custom_buttons.len();
-                                let is_goy = tc.settings.control_style == ControlStyle::GoyControl;
-                                let mut nb = CustomButton::new("key.mouse.left".into(), idx);
-                                nb.custom_label = format!("BTN {}", idx + 1);
-                                for m in 0..3 {
-                                    nb.layouts[m].use_goy_style = is_goy;
-                                }
-                                tc.settings.custom_buttons.push(nb);
-                                ed.selected_custom = Some(idx);
-                                ed.selected = None;
-                                ed.props_open = true;
-                                ed.props_tab = 2;
-                                if !is_goy {
-                                    ed.picker_step = PickerStep::AskInputType { event_slot: 0 };
-                                }
-                                let _ = tc.settings.save();
-                            }
-                        }
-                        5 => {
-                            // Copy Selected Button
-                            duplicate_selected_editor_button(&mut ed, tc);
-                        }
-                        _ => {
-                            // Open Save Dialog (Option A: Replace / Option B: Create New Preset)
-                            ed.save_dialog_open = true;
-                            ed.menu_open = false;
-                            ed.props_open = false;
-                            ed.editing_save_desc = false;
-                            ed.save_name_input = if tc.settings.is_default_preset() {
-                                format!("{} Custom", tc.settings.preset_name)
-                            } else {
-                                tc.settings.preset_name.clone()
-                            };
-                            ed.save_desc_input = tc.settings.preset_description.clone();
-                        }
-                    }
-                    tc.clicked = true;
-                    return false;
-                }
-                ix += iw + 5.0;
-            }
-        }
-
         // 6. Check 8 Corner & Edge Resize Handles on currently selected component FIRST
         let aspect = tc.aspect();
         let cur_sel_placement = if let Some(idx) = ed.selected_custom {
@@ -8633,6 +8434,7 @@ pub fn touch_hud_editor(
                 push_undo_snapshot(&mut ed, &tc.settings);
                 ed.selected_custom = Some(i);
                 ed.selected = None;
+                ed.canvas_origin = Some(point);
                 ed.active_drag = Some((
                     id,
                     EditorDragKind::Move {
@@ -8673,6 +8475,7 @@ pub fn touch_hud_editor(
     })();
 
     if !closed {
+        if tap_properties && ed.selected_custom.is_some() { ed.props_open = true; ed.side_scroll = 0.0; }
         tc.editor = Some(ed);
     }
     closed
@@ -8726,6 +8529,11 @@ mod tests {
 
         // Proportional resize preserves relative position without drift
         cursor = (213.5, 120.0);
+        assert!(ui.sync_viewport_cursor(&mut cursor, [854.0, 480.0]));
+        assert_eq!(cursor, (427.0, 240.0));
+
+        ui.recenter_pointer();
+        cursor = (3.0, 7.0);
         assert!(ui.sync_viewport_cursor(&mut cursor, [854.0, 480.0]));
         assert_eq!(cursor, (427.0, 240.0));
 

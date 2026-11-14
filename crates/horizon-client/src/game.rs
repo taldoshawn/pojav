@@ -12186,6 +12186,7 @@ impl Game<'_> {
             .with_user(|| self.options.player_name()),
         );
         if let Some(title) = &mut self.title {
+            title.legacy18 = self.options.legacy18;
             title.last_server = self.settings.file.string("lastServer");
             title.skip_multiplayer_warning = self.settings.file.bool("skipMultiplayerWarning");
         }
@@ -20352,6 +20353,7 @@ fn start_game<'a>(
                 &game.options.resources,
             )
             .with_user(|| game.options.player_name());
+            title.legacy18 = game.options.legacy18;
             title.last_server = game.settings.file.string("lastServer");
             title.skip_multiplayer_warning = game.settings.file.bool("skipMultiplayerWarning");
             // Gui.addInitialScreens: the accessibility onboarding comes first.
@@ -20659,6 +20661,7 @@ impl Loading {
             self.started.elapsed().as_millis()
         );
         self.menu.set_root(root, &self.settings, gui.sounds.take());
+        self.menu.set_legacy(self.options.as_ref().is_some_and(|options| options.legacy18));
         self.gui = Some(gui);
         horizon_client::ui_theme::reset_atlas();
         self.apply_menu_settings();

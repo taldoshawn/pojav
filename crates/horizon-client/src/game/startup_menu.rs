@@ -119,6 +119,10 @@ impl StartupMenu {
         Ok(menu)
     }
 
+    pub(super) fn set_legacy(&mut self, enabled: bool) {
+        if let Some(title) = self.title.as_mut() { title.legacy18 = enabled; }
+    }
+
     pub(super) fn set_root(
         &mut self,
         root: PathBuf,
@@ -1063,6 +1067,7 @@ impl Loading {
                 let _ = self.menu.controls.settings.save();
                 self.settings.touch = self.menu.controls.settings.clone();
                 if next {
+                    self.menu.touch.recenter_pointer();
                     self.menu
                         .touch
                         .sync_viewport_cursor(&mut self.menu.cursor, [b.width, b.height]);

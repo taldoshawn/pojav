@@ -329,6 +329,7 @@ impl Game<'_> {
                 } else {
                     self.pad.touch_ui.goy_in_game_mouse = !self.pad.touch_ui.goy_in_game_mouse;
                 }
+                self.pad.touch_ui.recenter_pointer();
                 self.android_sync_pointer();
                 self.android_touch_haptic(14);
             }

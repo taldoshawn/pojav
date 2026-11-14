@@ -232,3 +232,103 @@ pub(super) fn touch(
     }
     tc.clicked = true;
 }
+
+const CONTEXT: &[&str] = &[
+    "Adicionar botão",
+    "Adicionar analógico",
+    "Carregar",
+    "Salvar",
+    "Selecionar controle padrão",
+    "Exportar controles",
+];
+pub(super) fn draw_context(ui: &mut Ui) {
+    let width = (ui.w * 0.3).clamp(220.0, 340.0).min(ui.w);
+    let row = (ui.h / CONTEXT.len() as f32).min(58.0);
+    ui.fill(0.0, 0.0, ui.w, ui.h, crate::hud::rgba(0, 0, 0, 165));
+    let x = ui.w - width;
+    ui.fill(x, 0.0, width, ui.h, crate::hud::rgba(64, 64, 64, 255));
+    for (i, label) in CONTEXT.iter().enumerate() {
+        let y = i as f32 * row;
+        ui.text(Face::Regular, 15.0, x + 14.0, y + 16.0, u32::MAX, label);
+        ui.fill(
+            x,
+            y + row - 1.0,
+            width,
+            1.0,
+            crate::hud::rgba(90, 90, 90, 255),
+        );
+    }
+}
+pub(super) fn touch_context(
+    tc: &mut TouchControls,
+    ed: &mut Editor,
+    p: [f32; 2],
+    viewport: [f32; 2],
+) {
+    if !ed.classic_context {
+        ed.classic_context = true;
+        return;
+    }
+    ed.classic_context = false;
+    let width = (viewport[0] * 0.3).clamp(220.0, 340.0).min(viewport[0]);
+    if p[0] < viewport[0] - width {
+        return;
+    }
+    let row = (viewport[1] / CONTEXT.len() as f32).min(58.0);
+    let option = (p[1] / row) as usize;
+    super::push_undo_snapshot(ed, &tc.settings);
+    match option {
+        0 => {
+            let index = tc.settings.custom_buttons.len();
+            let mut button = crate::touch::CustomButton::new("key.keyboard.unknown".into(), index);
+            button.custom_label = "Botão".into();
+            for p in &mut button.layouts {
+                p.use_goy_style = true;
+                p.visible_in_menu = true;
+            }
+            tc.settings.custom_buttons.push(button);
+            ed.selected_custom = Some(index);
+            ed.selected = None;
+            ed.props_open = true;
+        }
+        1 => {
+            tc.settings.button_visibility[crate::touch::Control::Move as usize] = 1;
+            ed.selected_custom = None;
+            ed.selected = Some(crate::touch::Control::Move);
+            ed.props_open = true;
+        }
+        2 => ed.menu_open = true,
+        3 => {
+            ed.save_dialog_open = true;
+            ed.save_name_input = if tc.settings.is_default_preset() {
+                "Meu HUD".into()
+            } else {
+                tc.settings.preset_name.clone()
+            };
+            ed.save_desc_input = tc.settings.preset_description.clone();
+        }
+        4 => {
+            let original = &tc.settings;
+            let mut preset = crate::touch::Settings::default_pojav();
+            preset.preset_id = original.preset_id.clone();
+            preset.preset_name = original.preset_name.clone();
+            preset.active_goy_preset = original.active_goy_preset.clone();
+            preset.active_mcpe_preset = original.active_mcpe_preset.clone();
+            tc.settings = preset;
+            ed.selected_custom = None;
+            ed.selected = None;
+        }
+        5 => {
+            let result = serde_json::to_vec_pretty(&tc.settings)
+                .map_err(|e| e.to_string())
+                .and_then(|bytes| {
+                    std::fs::write("pojav-controls-export.json", bytes).map_err(|e| e.to_string())
+                });
+            ed.status_msg = Some(match result {
+                Ok(()) => "Exportado: pojav-controls-export.json na pasta do jogo".into(),
+                Err(e) => e,
+            });
+        }
+        _ => {}
+    }
+}

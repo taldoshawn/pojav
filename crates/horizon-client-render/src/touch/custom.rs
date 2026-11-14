@@ -651,7 +651,7 @@ mod tests {
         let mut t = TouchControls::default();
         t.settings = settings;
         t.viewport(1920, 1080);
-        for (finger, name, key) in [(1, "W", "key.keyboard.w"), (2, "PRI", "key.mouse.left"), (3, "KEYBOARD", "keyboard.show")] {
+        for (finger, name, key) in [(1, "▲", "key.keyboard.w"), (2, "PRI", "key.mouse.left"), (3, "KEYBOARD", "keyboard.show")] {
             let index = t.settings.custom_buttons.iter().position(|b| b.custom_label == name).unwrap();
             let point = t.custom_placement(index).center;
             t.update(finger, point, true, false);

@@ -383,6 +383,8 @@ pub enum Action {
     },
 }
 pub struct Title {
+    /// Legacy protocol selection; local worlds are unavailable in this mode.
+    pub legacy18: bool,
     pub mode: Mode,
     /// Direct Connection's address, synchronized with `options.txt`'s `lastServer`.
     pub last_server: String,
@@ -688,6 +690,7 @@ impl Title {
             warning_check: Cell::new([0.0; 4]),
             credits_button: Cell::new([0.0; 4]),
             allows_multiplayer: true,
+            legacy18: false,
             ban_queue: Default::default(),
             ban_buttons: Cell::new([(0.0, 0.0); 3]),
             backup: None,
@@ -1578,8 +1581,8 @@ impl Title {
                         cx - 100.0,
                         y,
                         200.0,
-                        &lang::get_or("menu.singleplayer", "Singleplayer"),
-                        true,
+                        &if self.legacy18 { "Singleplayer 1.8.9 indisponível".into() } else { lang::get_or("menu.singleplayer", "Singleplayer") },
+                        !self.legacy18,
                         1,
                     ),
                     b(
@@ -2330,8 +2333,8 @@ Would you like to enable the Narrator or visit the Accessibility Settings?",
                 }
                 #[cfg(target_os = "android")]
                 let version = format!(
-                    "Horizon {} (Rust) · Android v1.0.1",
-                    horizon_core::VANILLA_VERSION
+                    "Pojav Rust · {}",
+                    if self.legacy18 { "1.8.9 multiplayer (protocolo 47)" } else { horizon_core::VANILLA_VERSION }
                 );
                 #[cfg(not(target_os = "android"))]
                 let version = format!("Horizon {} (Rust)", horizon_core::VANILLA_VERSION);

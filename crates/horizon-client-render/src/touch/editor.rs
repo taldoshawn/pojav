@@ -45,6 +45,8 @@ pub enum PickerStep {
 }
 
 pub struct Editor {
+    pub classic_context: bool,
+    pub canvas_origin: Option<[f32; 2]>,
     /// Scroll and text entry state for the Pojav button side panel.
     pub side_scroll: f32,
     pub side_drag: Option<(u64, f32, f32, bool)>,
@@ -121,6 +123,8 @@ impl TouchControls {
         self.clear();
         let is_default = self.settings.is_default_preset();
         self.editor = Some(Editor {
+            classic_context: false,
+            canvas_origin: None,
             side_scroll: 0.0,
             side_drag: None,
             numeric_property: None,
@@ -143,7 +147,7 @@ impl TouchControls {
             kb_scroll_x: 0.0,
             pod_expanded: true,
             pod_anim: 1.0,
-            show_hidden: true,
+            show_hidden: false,
             active_drag: None,
             undo_stack: Vec::new(),
             redo_stack: Vec::new(),

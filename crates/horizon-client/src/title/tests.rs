@@ -1821,3 +1821,14 @@ fn a_finished_optimization_stamps_the_level_data() {
     let version = root.get("Data").and_then(|d| d.get("DataVersion"));
     assert!(matches!(version, Some(Tag::Int(v)) if *v == horizon_world::DATA_VERSION));
 }
+
+#[test]
+fn legacy_selection_does_not_enter_modern_local_worlds() {
+    let mut f = Fixture::new();
+    f.title.legacy18 = true;
+    assert_eq!(f.click("Singleplayer 1.8.9 indisponível"), Action::None);
+    assert!(matches!(f.title.mode, Mode::Main));
+    f.title.skip_multiplayer_warning = true;
+    f.click("Multiplayer");
+    assert!(matches!(f.title.mode, Mode::Multiplayer(_)));
+}

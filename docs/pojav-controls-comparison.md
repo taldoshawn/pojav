@@ -54,3 +54,26 @@ A seta junto de **Jogar Minecraft 1.8.9 / 26.3** abre o seletor. A seleção é
 persistida e agora aparece tanto no botão quanto no resumo do perfil.
 1.8.9 seleciona o backend multiplayer de protocolo 47; mundos locais permanecem
 26.3. O seletor não oferece versões sem implementação.
+
+## Revisão da referência enviada
+
+O launcher usa navegação lateral escura, destaque roxo, cartão da versão
+selecionada e acessos a Mods, Resource Packs e Shaders. O cartão não inclui
+panorama ou logotipo extraídos da imagem enviada. As demais páginas preservam
+suas operações de busca, instalação e configuração.
+
+O editor agora usa fundo cinza, engrenagem e menu lateral para adicionar botão,
+adicionar analógico, carregar, salvar, restaurar o HUD clássico e exportar.
+Um toque sem arrasto abre as propriedades do botão. A exportação desse menu
+gera `pojav-controls-export.json` na pasta do jogo; o launcher também mantém a
+exportação pelo seletor de arquivos Android. Gavetas ainda não foram portadas.
+
+O comportamento de ativação do cursor foi conferido na referência pública
+`Touchpad.java`: movimento relativo com velocidade linear, limites da tela e
+centralização ao ativar. O Rust agora reinicializa a posição ao alternar MOUSE;
+a imagem do cursor continua personalizável pelo resource pack documentado.
+
+Selecionar 1.8.9 habilita exclusivamente o multiplayer de protocolo 47. O menu
+mostra essa seleção e desabilita o acesso aos mundos locais 26.3. Isso não
+implementa singleplayer 1.8.9 nem substitui o motor moderno por uma implementação
+integral da versão antiga.
