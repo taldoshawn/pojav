@@ -3,6 +3,8 @@ use crate::{
     hud::{HudAtlas, HudBatch, rgba},
     osk::{Keyboard, Output},
 };
+mod pojav_editor;
+
 use std::{
     cell::Cell,
     collections::BTreeMap,
@@ -332,6 +334,23 @@ pub fn apply_editor_button_label_output(
                 ed.button_label_input.push(ch);
             }
         }
+    }
+    if let Some(field) = ed.numeric_property {
+        if !ed.editing_button_label {
+            let cancelled = matches!(out, Output::Key(KeyCode::Escape));
+            if !cancelled && let Some(index) = ed.selected_custom {
+                let mut valid = false;
+                if let Some(button) = tc.settings.custom_buttons.get_mut(index) {
+                    for placement in &mut button.layouts {
+                        valid = crate::touch::property_input::apply_number(placement, field, &ed.button_label_input, ed.property_viewport);
+                    }
+                }
+                if !valid { ed.status_msg = Some("Valor inválido; propriedade preservada.".into()); }
+                else if let Err(error) = tc.settings.save() { ed.status_msg = Some(error.to_string()); }
+            }
+            ed.numeric_property = None;
+        }
+        return true;
     }
     let new_label = ed.button_label_input.clone();
     let sel_custom = ed.selected_custom;
@@ -1146,6 +1165,7 @@ const MOUSE_AND_ACTION_ITEMS: &[(&str, &str)] = &[
     ("Scroll Wheel Up", "mouse.scroll.up"),
     ("Scroll Wheel Down", "mouse.scroll.down"),
     ("Toggle Virtual Mouse", "mouse.virtual.toggle"),
+    ("Show Keyboard", "keyboard.show"),
     ("Mouse Look Area", "mouse.look"),
     ("Action: Attack / Mine", "action:key.attack"),
     ("Action: Use / Place", "action:key.use"),
@@ -5082,7 +5102,7 @@ pub fn draw_hud_editor(
 
     // 7. Step 1 / Step 2 Mouse vs Keyboard Horizontal Picker Modal
     if ed.picker_step != PickerStep::None {
-        let mcpe_excl = tc.settings.control_style == ControlStyle::Mcpe;
+        let mcpe_excl = tc.settings.control_style == ControlStyle::Mcpe && ed.selected_custom.is_none();
         draw_input_picker_modal(
             &mut ui,
             w,
@@ -5092,6 +5112,12 @@ pub fn draw_hud_editor(
             false,
             mcpe_excl,
         );
+        ui.finish();
+        return;
+    }
+
+    if ed.props_open && ed.selected_custom.is_some() {
+        pojav_editor::draw(tc, ed, &mut ui);
         ui.finish();
         return;
     }
@@ -7036,6 +7062,14 @@ pub fn touch_hud_editor(
     };
     clamp_editor_custom_selection(&mut ed, &tc.settings);
 
+    if ed.props_open && ed.selected_custom.is_some() && ed.picker_step == PickerStep::None
+        && !ed.back_confirm_open && !ed.save_dialog_open && !ed.duplicate_name_confirm_open
+    {
+        pojav_editor::touch(tc, &mut ed, id, p, [w, h], started, ended);
+        tc.editor = Some(ed);
+        return false;
+    }
+
     let closed = (|| -> bool {
         // 1. Handle ongoing drag / resize / floating-pod move / horizontal keyboard scroll
         if !started {
@@ -7084,7 +7118,7 @@ pub fn touch_hud_editor(
                                 if !moved
                                     && let PickerStep::Keyboard { event_slot } = ed.picker_step
                                 {
-                                    let is_mcpe = tc.settings.control_style == ControlStyle::Mcpe;
+                                    let is_mcpe = tc.settings.control_style == ControlStyle::Mcpe && ed.selected_custom.is_none();
                                     let dh = (h - 20.0).clamp(235.0, 340.0);
                                     let dx = (w - dw) * 0.5;
                                     let dy = (h - dh) * 0.5;
@@ -7426,7 +7460,7 @@ pub fn touch_hud_editor(
 
         // 2. If Mouse vs Keyboard Picker Modal is open:
         if ed.picker_step != PickerStep::None {
-            let is_mcpe = tc.settings.control_style == ControlStyle::Mcpe;
+            let is_mcpe = tc.settings.control_style == ControlStyle::Mcpe && ed.selected_custom.is_none();
             match ed.picker_step {
                 PickerStep::AskInputType { event_slot } => {
                     let dw = (w - 36.0).clamp(270.0, 440.0);

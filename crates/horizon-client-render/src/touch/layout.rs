@@ -678,6 +678,50 @@ impl Settings {
         s
     }
 
+    /// Classic landscape keyboard grid and top utility row, all editable.
+    pub fn default_pojav() -> Self {
+        let mut s = Self::default_goycontrol();
+        s.button_visibility[Control::Move as usize] = 2;
+        s.custom_buttons.clear();
+        for (name, key, x, y, width, height) in [
+            ("DEBUG", "key.keyboard.f3", 0.055, 0.04, 0.09, 0.07),
+            ("CHAT", "key.keyboard.t", 0.15, 0.04, 0.09, 0.07),
+            ("KEYBOARD", "keyboard.show", 0.245, 0.04, 0.09, 0.07),
+            ("TAB", "key.keyboard.tab", 0.34, 0.04, 0.09, 0.07),
+            ("3RD", "key.keyboard.f5", 0.055, 0.115, 0.09, 0.07),
+            ("MOUSE", "mouse.virtual.toggle", 0.945, 0.04, 0.09, 0.07),
+            ("PRI", "key.mouse.left", 0.04, 0.69, 0.055, 0.115),
+            ("W", "key.keyboard.w", 0.10, 0.69, 0.055, 0.115),
+            ("SEC", "key.mouse.right", 0.16, 0.69, 0.055, 0.115),
+            ("A", "key.keyboard.a", 0.04, 0.81, 0.055, 0.115),
+            ("SHIFT", "key.keyboard.left.shift", 0.10, 0.81, 0.055, 0.115),
+            ("D", "key.keyboard.d", 0.16, 0.81, 0.055, 0.115),
+            ("GUI", "key.keyboard.f1", 0.04, 0.93, 0.055, 0.115),
+            ("S", "key.keyboard.s", 0.10, 0.93, 0.055, 0.115),
+            ("INV", "key.keyboard.e", 0.16, 0.93, 0.055, 0.115),
+            ("SPACE", "key.keyboard.space", 0.91, 0.81, 0.055, 0.115),
+        ] {
+            let mut button = super::CustomButton::new(key.into(), s.custom_buttons.len());
+            button.custom_label = name.into();
+            let mut p = Placement::new(x, y, height);
+            p.width_ratio = width * (16.0 / 9.0) / height;
+            p.shape = 1;
+            p.roundness = 0.0;
+            p.stroke_roundness = 0.0;
+            p.button_color = 0xFF777777;
+            p.stroke_color = 0xFFCCCCCC;
+            p.opacity = 0.55;
+            p.use_goy_style = true;
+            p.visible_in_game = true;
+            p.visible_in_menu = true;
+            button.layouts = [p; 3];
+            s.custom_buttons.push(button);
+        }
+        s.virtual_mouse_enabled = true;
+        s.sanitize();
+        s
+    }
+
     /// Returns the protected Default configuration for the specified control system.
     pub fn default_for_style(style: ControlStyle) -> Self {
         match style {

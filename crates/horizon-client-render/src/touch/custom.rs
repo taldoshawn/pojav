@@ -39,7 +39,7 @@ impl CustomButton {
             || crate::keybinds::mouse_button(token).is_some()
             || matches!(
                 token,
-                "mouse.scroll.up" | "mouse.scroll.down" | "mouse.virtual.toggle" | "mouse.look"
+                "mouse.scroll.up" | "mouse.scroll.down" | "mouse.virtual.toggle" | "mouse.look" | "keyboard.show"
             )
             || token
                 .strip_prefix("action:")
@@ -191,6 +191,7 @@ pub fn friendly_token_name(token: &str) -> String {
         "mouse.scroll.up" => "Wheel Up".into(),
         "mouse.scroll.down" => "Wheel Down".into(),
         "mouse.virtual.toggle" => "Virtual Mouse".into(),
+        "keyboard.show" => "Keyboard".into(),
         "mouse.look" => "Mouse Look".into(),
         _ => {
             if let Some(name) = token.strip_prefix("action:") {
@@ -642,6 +643,28 @@ impl TouchControls {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn classic_preset_keeps_keyboard_and_simultaneous_movement_after_reload() {
+        let serialized = serde_json::to_vec(&Settings::default_pojav()).unwrap();
+        let mut settings: Settings = serde_json::from_slice(&serialized).unwrap();
+        settings.sanitize();
+        let mut t = TouchControls::default();
+        t.settings = settings;
+        t.viewport(1920, 1080);
+        for (finger, name, key) in [(1, "W", "key.keyboard.w"), (2, "PRI", "key.mouse.left"), (3, "KEYBOARD", "keyboard.show")] {
+            let index = t.settings.custom_buttons.iter().position(|b| b.custom_label == name).unwrap();
+            let point = t.custom_placement(index).center;
+            t.update(finger, point, true, false);
+            assert_eq!(t.key_events(), [(key.into(), true)]);
+        }
+        t.clear();
+        let released = t.key_events();
+        assert_eq!(released.len(), 3);
+        for key in ["key.keyboard.w", "key.mouse.left", "keyboard.show"] {
+            assert!(released.contains(&(key.into(), false)));
+        }
+    }
+
     #[test]
     fn inventory_modifier_and_mouse_hold_independently_and_cancel_cleanly() {
         let mut t = TouchControls::default();

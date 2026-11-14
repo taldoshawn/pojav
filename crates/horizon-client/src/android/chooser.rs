@@ -44,11 +44,11 @@ impl Launcher {
         let c = &self.catalog.config;
         let (title, help, choices) = match kind {
             Kind::GameVersion => (
-                "Minecraft version",
-                "1.8.9 multiplayer compatibility is under development. Local worlds currently use 26.3.",
+                "Selecionar versão",
+                "1.8.9: servidores multiplayer. Mundos locais usam 26.3. Outras versões ainda não estão implementadas.",
                 vec![
-                    ("26.3".into(), "Current engine".into(), Action::ChooseGameVersion(false), !c.legacy18),
-                    ("1.8.9".into(), "Legacy multiplayer — validation pending".into(), Action::ChooseGameVersion(true), c.legacy18),
+                    ("26.3".into(), "Mundos locais e multiplayer 26.3".into(), Action::ChooseGameVersion(false), !c.legacy18),
+                    ("1.8.9".into(), "Multiplayer 1.8–1.8.9 • protocolo 47".into(), Action::ChooseGameVersion(true), c.legacy18),
                 ],
             ),
             Kind::Aspect => (

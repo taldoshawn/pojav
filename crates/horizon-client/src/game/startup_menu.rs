@@ -1046,6 +1046,10 @@ impl Loading {
         pressed: bool,
     ) {
         let b = HudBatch::new(self.menu_size());
+        if token == "keyboard.show" {
+            if pressed { crate::platform::show(""); }
+            return;
+        }
         if token == "mouse.virtual.toggle" {
             if pressed {
                 for right in self.menu.touch.release_all_mouse() {

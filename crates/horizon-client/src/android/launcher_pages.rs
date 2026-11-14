@@ -1641,14 +1641,16 @@ impl Launcher {
                         "Launching...",
                     );
                 } else {
-                    let play_label = if installed {
-                        "Play Minecraft 26.3"
+                    let play_label = if installed && self.catalog.config.legacy18 {
+                        "Jogar Minecraft 1.8.9"
+                    } else if installed {
+                        "Jogar Minecraft 26.3"
                     } else if self.error.is_some() {
                         "Retry installation"
                     } else {
                         "Download Minecraft 26.3"
                     };
-                    let prof_label = format!("Profile {} v", self.catalog.config.profile + 1);
+                    let prof_label = if self.catalog.config.legacy18 { "1.8.9 ▾" } else { "26.3 ▾" };
                     let (lead_r, trail_r) = ui.m3_split_button(
                         split_x,
                         split_y,
@@ -1656,11 +1658,11 @@ impl Launcher {
                         split_h,
                         Some(Icon::Play),
                         play_label,
-                        &prof_label,
+                        prof_label,
                         true,
                     );
                     self.targets.push((lead_r, Action::Play));
-                    self.targets.push((trail_r, Action::Profile));
+                    self.targets.push((trail_r, Action::GameVersion));
                 }
 
                 let hero_text_max = (split_x - (content_x + 74.0) - 12.0).max(110.0);
@@ -1688,7 +1690,8 @@ impl Launcher {
                     Face::Regular,
                     12.5,
                     &format!(
-                        "Minecraft 26.3 • Profile {} • {}",
+                        "Minecraft {} • Profile {} • {}",
+                        if self.catalog.config.legacy18 { "1.8.9" } else { "26.3" },
                         self.catalog.config.profile + 1,
                         self.catalog.config.renderer.label()
                     ),
@@ -6022,8 +6025,8 @@ impl Launcher {
                 let sprint_latch_active = opts.toggle_sprint || touch_cfg.sprint_toggle;
 
                 let rows: [(&str, &str, SettingControl<'_>); 33] = [
-                    ("Pojav-style controls", "Editable PRI/SEC, movement, inventory, DEBUG, CHAT, TAB and MOUSE buttons",
-                     SettingControl::Button("Create Pojav layout", Action::PojavControlPreset, false)),
+                    ("Controles Pojav", "Editable PRI/SEC, movement, inventory, DEBUG, CHAT, TAB and MOUSE buttons",
+                     SettingControl::Button("Usar HUD clássico Pojav", Action::PojavControlPreset, false)),
                     ("Virtual mouse speed", "Adjust pointer movement speed",
                      SettingControl::Slider { value_label: &format!("{:.2}x", touch_cfg.virtual_mouse_sensitivity),
                      fraction: (touch_cfg.virtual_mouse_sensitivity - 0.25) / 2.75,
@@ -6992,7 +6995,7 @@ impl Launcher {
                 use horizon_client::touch::Settings;
                 let home = self.catalog.config.game_home(&self.home);
                 let previous = Settings::load_from(&home.join("horizon-touch.json"));
-                let mut preset = Settings::default_goycontrol();
+                let mut preset = Settings::default_pojav();
                 preset.active_mcpe_preset = previous.active_mcpe_preset;
                 preset.virtual_mouse_sensitivity = previous.virtual_mouse_sensitivity;
                 preset.virtual_mouse_pointer_scale = previous.virtual_mouse_pointer_scale;

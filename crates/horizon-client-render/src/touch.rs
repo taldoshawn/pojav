@@ -30,6 +30,7 @@ pub fn set_current_hud_opacity_scale(scale: f32) {
 
 pub mod custom;
 pub mod editor;
+pub mod property_input;
 pub use custom::CustomButton;
 pub use editor::{Editor, EditorDragKind, PickerStep};
 pub mod layout;

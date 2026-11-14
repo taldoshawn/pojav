@@ -26,3 +26,31 @@ comportamental ou qualidade equivalente no aparelho.
 O workflow Android executa os testes de controles customizados no host antes
 finalizar a variante ARM64. Esses testes verificam lógica de entrada; testes
 no APK e em aparelhos continuam necessários para avaliar latência e ergonomia.
+
+## Painel lateral e HUD clássico
+
+O preset **Controles → Usar HUD clássico Pojav** agora cria a grade de teclas
+W/A/S/D, PRI/SEC, SHIFT, GUI, INV e SPACE, além da barra superior DEBUG,
+CHAT, KEYBOARD, TAB, 3RD e MOUSE. Não substitui layouts personalizados existentes.
+KEYBOARD abre o teclado do Android; dentro do mundo, abre também o campo de chat.
+
+Selecionar um botão e abrir **Props** mostra um painel lateral, do lado oposto
+à seleção, com uma lista rolável de nome, largura, altura, posição, quatro
+atribuições, opacidade, cantos, borda, cores, alternância, passagem de toque,
+deslizamento e visibilidade. Toque num valor, digite e confirme com Enter.
+Medidas usam unidades da interface; cores aceitam oito dígitos AARRGGBB.
+Arrastar a lista rola sem ativar o campo. Fechar durante uma entrada numérica
+não confirmada descarta essa entrada. O salvamento de presets permanece no menu
+Salvar do editor.
+
+Essa revisão substitui o inspetor central dos botões. Ainda não representa uma
+cópia integral do editor Pojav: o seletor de teclas e o menu de presets continuam
+próprios; importação do JSON Pojav, gavetas de botões e expressões de posição
+não foram implementadas. Equivalência visual completa não foi validada.
+
+## Versão na tela inicial
+
+A seta junto de **Jogar Minecraft 1.8.9 / 26.3** abre o seletor. A seleção é
+persistida e agora aparece tanto no botão quanto no resumo do perfil.
+1.8.9 seleciona o backend multiplayer de protocolo 47; mundos locais permanecem
+26.3. O seletor não oferece versões sem implementação.
