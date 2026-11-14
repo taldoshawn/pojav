@@ -506,13 +506,11 @@ mod tests {
             .find(|s| s.kind == StageKind::Material)
             .unwrap();
         let m = module(ms, vs, &[], &[]).expect("material + vertex with waving_plants compiles");
-        let constants = present_constants(
-            &m,
-            &[
-                ("waving_plants".into(), 1.0),
-                ("wind_speed".into(), 2.0),
-            ],
-        );
+        let settings = [
+            ("waving_plants".into(), 1.0),
+            ("wind_speed".into(), 2.0),
+        ];
+        let constants = present_constants(&m, &settings);
         assert!(constants.contains(&("waving_plants", 1.0)));
         assert!(constants.contains(&("wind_speed", 2.0)));
     }
