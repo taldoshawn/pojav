@@ -6989,11 +6989,13 @@ impl Launcher {
                 );
             }
             Some(Action::PojavControlPreset) => {
-                use horizon_client::touch::{Settings, ControlStyle};
+                use horizon_client::touch::Settings;
                 let home = self.catalog.config.game_home(&self.home);
-                let mut preset = Settings::default();
-                preset.control_style = ControlStyle::GoyControl;
-                preset.custom_buttons = Settings::default_goy_buttons();
+                let previous = Settings::load_from(&home.join("horizon-touch.json"));
+                let mut preset = Settings::default_goycontrol();
+                preset.active_mcpe_preset = previous.active_mcpe_preset;
+                preset.virtual_mouse_sensitivity = previous.virtual_mouse_sensitivity;
+                preset.virtual_mouse_pointer_scale = previous.virtual_mouse_pointer_scale;
                 preset.virtual_mouse_enabled = true;
                 preset.save_new_preset(&home, "Pojav classic", "Editable keyboard and mouse controls")?;
                 self.catalog.status = "Pojav layout selected. Use Open Editor to edit buttons.".into();
