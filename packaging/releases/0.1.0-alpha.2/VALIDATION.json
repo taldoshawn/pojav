@@ -1,0 +1,20 @@
+{
+  "package": "dev.taldoshawn.pojav",
+  "apk": "Pojav-Rust-10-44d127840c3e-x86_64.apk",
+  "installed": true,
+  "startup_passed": true,
+  "failure": null,
+  "local_profiles_verified": false,
+  "test": "x86_64 emulator API 35 legacy touch interaction",
+  "legacy_basic_interaction_verified": true,
+  "world_or_multiplayer_tested": true,
+  "fps_benchmark": false,
+  "pvp_verified": false,
+  "pvp_attack_verified": true,
+  "server_probe": "legacy18",
+  "public_server_probe": false,
+  "screenshots_require_manual_gameplay_review": true,
+  "workflow": "https://github.com/taldoshawn/pojav/actions/runs/43500943085",
+  "physical_phone_benchmark": false,
+  "dropped_item_rendering_verified": false
+}
